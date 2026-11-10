@@ -1,5 +1,7 @@
 # RepoLens V1
 
+Agent_ressearch：多 Agent 开源项目研读与技术调研平台的 V1 单 Agent 基线。
+
 本地 Python 仓库研读工作台：固定快照 → AST / FTS5 检索 → 单 Agent 工具调用 → 结构化报告 → 可点击源码证据。Python 3.12+，FastAPI + SQLite + Jinja2 / 原生 JavaScript。
 
 ## Windows PowerShell 启动
