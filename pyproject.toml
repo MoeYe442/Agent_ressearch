@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools==80.4.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repolens"
+version = "0.1.0"
+description = "Local Python repository investigation with verifiable evidence"
+requires-python = ">=3.12"
+dependencies = ["fastapi==0.115.12", "pydantic==2.11.4", "jinja2==3.1.6", "httpx==0.28.1", "uvicorn==0.34.2", "certifi==2026.10.23"]
+
+[project.optional-dependencies]
+test = ["pytest==8.3.5", "playwright==1.51.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+repolens = ["templates/*.html", "static/*.js", "static/*.css"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RepoLens · 源码研读工作台</title>
+  <link rel="stylesheet" href="/static/workspace.css">
+  <script src="/static/workspace.js" defer></script>
+</head>
+<body>
+  <aside class="navigation" aria-label="主导航">
+    <a class="brand" href="/"><span class="brand-mark">R<span>↗</span></span>RepoLens<span class="version">V1</span></a>
+    <div class="nav-caption">REPOSITORY INTELLIGENCE</div>
+    <button id="new-analysis" class="new-button"><span>＋</span> 新建分析</button>
+    <div class="nav-section"><span>分析记录</span><span id="history-count">0</span></div>
+    <nav id="task-history" aria-label="分析记录"><p class="nav-empty">还没有分析记录</p></nav>
+    <div class="nav-footer"><span class="local-dot"></span> 本地工作空间<div>只读分析 · 固定版本 · 可复查证据</div></div>
+  </aside>
+  <main>
+    <header class="topbar"><div><span class="breadcrumb">工作空间</span><span class="slash">/</span><span>仓库研读</span></div><span class="local-label">◉ LOCAL</span></header>
+    <div class="content">
+      <div id="environment-banner" class="banner" hidden></div>
+      <div class="page-heading"><div><div class="eyebrow">READ THE CODE. FOLLOW THE EVIDENCE.</div><h1>源码研读工作台<span class="heading-dot">.</span></h1><p>从一个问题出发，把结论追溯到每一行代码。</p></div><span class="readonly-badge">只读模式</span></div>
+      <div id="error-message" class="error-message" role="alert" hidden></div>
+      <section id="new-panel" class="card new-panel" aria-labelledby="new-title">
+        <div class="section-label">01 / 开始一项调查</div><h2 id="new-title">你想了解哪个仓库？</h2>
+        <form id="analysis-form">
+          <label for="repo-path">本地仓库路径</label><input id="repo-path" name="path" placeholder="输入允许工作目录内的 Python 仓库绝对路径" required autocomplete="off">
+          <p class="field-hint" id="workspace-hint">正在读取工作目录配置…</p>
+          <label for="question">研究问题</label><textarea id="question" name="question" rows="3" placeholder="例如：任务状态保存在哪里？进程重启后能否恢复？" maxlength="10000" required></textarea>
+          <div class="form-footer"><span>本地快照 · Python AST + 全文检索</span><button class="primary" id="submit-analysis" type="submit">开始分析 <span aria-hidden="true">↗</span></button></div>
+          <p id="import-status" class="field-hint" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      <section id="workspace-panel" hidden>
+        <div class="task-heading"><div><div class="section-label" id="snapshot-label">SNAPSHOT</div><h2 id="task-question"></h2><p id="repository-label" class="muted"></p></div><span id="task-status" class="status-pill" role="status" aria-live="polite">等待中</span></div>
+        <div class="metrics"><div><span>模型请求</span><strong id="model-calls">暂无</strong></div><div><span>工具调用</span><strong id="tool-calls">暂无</strong></div><div><span>输入 / 输出 Token</span><strong id="token-usage">暂无</strong></div><div><span>调查耗时</span><strong id="elapsed">暂无</strong></div><button id="cancel-task" class="quiet-button">取消任务</button></div>
+        <div class="workspace-grid">
+          <section class="card investigation">
+            <div class="report-toolbar"><div class="tabs" role="tablist" aria-label="分析视图"><button role="tab" id="tab-report" data-tab="report" aria-controls="report-panel" aria-selected="true">研究报告</button><button role="tab" id="tab-process" data-tab="process" aria-controls="process-panel" aria-selected="false" tabindex="-1">调查过程</button><button role="tab" id="tab-sources" data-tab="sources" aria-controls="sources-panel" aria-selected="false" tabindex="-1">资料与证据</button></div><button id="download-report" class="quiet-button" disabled aria-label="下载报告">↓ 导出</button></div>
+            <div id="report-panel" class="panel report-content" role="tabpanel" aria-labelledby="tab-report"><div class="empty-state"><span class="empty-symbol">⌕</span><h3>正在收集代码证据</h3><p>工具事件会实时出现在「调查过程」中。</p></div></div>
+            <div id="process-panel" class="panel" role="tabpanel" aria-labelledby="tab-process" hidden><div class="panel-heading"><h3>调查时间线</h3><span id="connection-state" class="muted">连接中</span></div><ol id="event-list" class="event-list"></ol></div>
+            <div id="sources-panel" class="panel" role="tabpanel" aria-labelledby="tab-sources" hidden><h3>可复查的源码证据</h3><p class="muted">引用绑定导入快照，原仓库的后续修改不会改变证据。</p><div id="source-list"></div></div>
+            <form id="followup-form" class="followup"><label for="followup-question">沿用同一快照继续追问</label><div><input id="followup-question" placeholder="提出下一个研究问题…" required maxlength="10000"><button class="primary" type="submit">追问 ↗</button></div></form>
+          </section>
+          <aside id="evidence-sidebar" class="card evidence-sidebar" aria-label="证据查看器"><div class="evidence-heading"><span class="section-label">SOURCE EVIDENCE</span><span class="verified-dot">● 快照校验</span></div><div id="evidence-placeholder" class="empty-state"><span class="empty-symbol">⧉</span><h3>让结论有据可查</h3><p>点击报告中的引用，查看对应代码、行号与版本。</p></div><div id="evidence-detail" hidden><h3 id="evidence-location"></h3><div id="evidence-meta" class="evidence-meta"></div><pre class="code-view"><code id="evidence-code"></code></pre><p class="field-hint">哈希与行号验证通过，仅表示来源有效；结论是否得到支持仍需审阅。</p></div></aside>
+        </div>
+      </section>
+      <footer class="page-footer"><span>RepoLens / Evidence before conclusions</span><span>V1 · 单 Agent · 本地 Python 仓库</span></footer>
+    </div>
+  </main>
+</body>
+</html>
