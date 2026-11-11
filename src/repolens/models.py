@@ -13,6 +13,9 @@ class RepositorySnapshot(BaseModel):
     manifest: dict[str, str] = Field(default_factory=dict)
     dirty: bool | None = None
     error_code: str | None = None
+    source_type: str = "local"
+    requested_ref: str | None = None
+    archive_hash: str | None = None
 
 
 class SearchHit(BaseModel):
