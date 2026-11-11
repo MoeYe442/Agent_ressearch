@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from repolens.evidence import EvidenceStore
 from repolens.model_client import configured_model
@@ -17,8 +17,16 @@ from repolens.tasks import TaskService, TERMINAL
 
 class ImportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    path: str = Field(min_length=1, max_length=2000)
+    path: str | None = Field(default=None, min_length=1, max_length=2000)
+    github_url: str | None = Field(default=None, min_length=1, max_length=500)
+    ref: str | None = Field(default=None, max_length=255)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def one_source(self):
+        if (self.path is None) == (self.github_url is None) or (self.path is not None and self.ref is not None):
+            raise ValueError("exactly_one_repository_source")
+        return self
 
 
 class TaskRequest(BaseModel):
@@ -28,9 +36,9 @@ class TaskRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
 
 
-def create_app(settings, model=None):
+def create_app(settings, model=None, *, github_client_factory=None):
     db = Database(settings.data_dir / "repolens.sqlite")
-    service = TaskService(settings, db, model if model is not None else configured_model(settings))
+    service = TaskService(settings, db, model if model is not None else configured_model(settings), github_client_factory)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -74,6 +82,8 @@ def create_app(settings, model=None):
 
     @app.post("/repositories", status_code=202)
     def import_repository(body: ImportRequest):
+        if body.github_url is not None:
+            return service.import_github_repository(body.github_url, body.ref, body.idempotency_key)
         return service.import_repository(Path(body.path), body.idempotency_key)
 
     @app.get("/repositories")

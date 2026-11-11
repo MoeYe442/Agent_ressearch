@@ -8,6 +8,8 @@ from repolens.indexing import build_index
 from repolens.models import AnalysisTask, RepositorySnapshot, TaskEvent, ToolContext, Usage
 from repolens.repositories import checked_repo, create_snapshot
 from repolens.tools import ToolRegistry
+from repolens.github_client import GitHubClient, GitHubSource
+from repolens.github_import import import_github_snapshot
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -17,13 +19,14 @@ def now():
 
 
 class TaskService:
-    def __init__(self, settings, db, model):
+    def __init__(self, settings, db, model, github_client_factory=None):
         self.settings, self.db, self.model = settings, db, model
         self.registry = ToolRegistry(db)
         self.queue = queue.Queue()
         self.lock = threading.RLock()
         self.stopping = threading.Event()
         self.worker = None
+        self.github_client_factory = github_client_factory or GitHubClient
 
     def start(self):
         with self.lock:
@@ -61,13 +64,20 @@ class TaskService:
 
     def import_repository(self, path, idempotency_key=None):
         source = checked_repo(path, self.settings)
+        return self._register_import(str(source), "local", None, idempotency_key)
+
+    def import_github_repository(self, url, ref=None, idempotency_key=None):
+        source = GitHubSource.parse(url, ref)
+        return self._register_import(source.url, "github", source.requested_ref, idempotency_key)
+
+    def _register_import(self, source, source_type, ref, idempotency_key):
         snapshot_id = uuid4().hex
-        snapshot = RepositorySnapshot(id=snapshot_id, source=str(source), root=self.settings.data_dir.resolve() / "snapshots" / snapshot_id)
+        snapshot = RepositorySnapshot(id=snapshot_id, source=source, source_type=source_type, requested_ref=ref, root=self.settings.data_dir.resolve() / "snapshots" / snapshot_id)
         with self.lock:
             if idempotency_key:
                 try:
                     prior = self.db.get("import_idempotency", idempotency_key)
-                    if prior["source"] != str(source):
+                    if prior["source"] != source or prior.get("source_type", "local") != source_type or prior.get("ref") != ref:
                         raise ValueError("idempotency_conflict")
                     return self.db.get_snapshot(prior["snapshot_id"])
                 except KeyError:
@@ -76,7 +86,7 @@ class TaskService:
                 conn.execute("BEGIN IMMEDIATE")
                 conn.execute("INSERT INTO entities VALUES ('snapshots',?,?)", (snapshot.id, snapshot.model_dump_json()))
                 if idempotency_key:
-                    conn.execute("INSERT INTO entities VALUES ('import_idempotency',?,?)", (idempotency_key, json.dumps({"source": str(source), "snapshot_id": snapshot.id})))
+                    conn.execute("INSERT INTO entities VALUES ('import_idempotency',?,?)", (idempotency_key, json.dumps({"source": source, "source_type": source_type, "ref": ref, "snapshot_id": snapshot.id})))
             self.queue.put(("import", snapshot_id))
         return snapshot
 
@@ -146,8 +156,18 @@ class TaskService:
 
     def _import(self, snapshot_id):
         snapshot = self.db.get_snapshot(snapshot_id)
+        archive_path = None
         try:
-            snapshot = create_snapshot(snapshot.source, self.settings, snapshot_id)
+            if snapshot.source_type == "github":
+                adapter = self.github_client_factory(self.settings)
+                resolved = adapter.resolve(GitHubSource.parse(snapshot.source, snapshot.requested_ref))
+                snapshot.commit_sha = resolved.commit_sha
+                self.db.put_snapshot(snapshot)
+                archive_path = self.settings.data_dir.resolve() / "downloads" / f"{snapshot_id}.zip"
+                adapter.download_archive(resolved, archive_path)
+                snapshot = import_github_snapshot(resolved, archive_path, self.settings, snapshot_id)
+            else:
+                snapshot = create_snapshot(snapshot.source, self.settings, snapshot_id)
             snapshot.status = "importing"
             self.db.put_snapshot(snapshot)
             build_index(snapshot, self.db)
@@ -155,6 +175,9 @@ class TaskService:
             snapshot.status = "failed"
             snapshot.error_code = str(exc) if isinstance(exc, ValueError) else "import_failed"
             self.db.put_snapshot(snapshot)
+        finally:
+            if archive_path is not None:
+                archive_path.unlink(missing_ok=True)
 
     def _execute(self, task_id):
         with self.lock:
