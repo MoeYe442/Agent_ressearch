@@ -19,6 +19,13 @@ class Settings(BaseModel):
     model_key: SecretStr = SecretStr("")
     provider_timeout: float = Field(default=45, gt=0, le=120)
     test_environment: bool = False
+    github_token: SecretStr = SecretStr("")
+    github_max_download_bytes: int = Field(default=100 * 1024 * 1024, gt=0)
+    github_max_metadata_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
+    github_max_members: int = Field(default=50000, gt=0)
+    github_max_unpacked_bytes: int = Field(default=500 * 1024 * 1024, gt=0)
+    github_import_timeout: float = Field(default=180, gt=0, le=180)
+    github_request_timeout: float = Field(default=30, gt=0, le=30)
 
     @classmethod
     def from_env(cls):
@@ -28,4 +35,5 @@ class Settings(BaseModel):
             model_url=os.getenv("REPOLENS_MODEL_URL", "https://api.openai.com/v1"),
             model_name=os.getenv("REPOLENS_MODEL", ""),
             model_key=SecretStr(os.getenv("REPOLENS_API_KEY", "")),
+            github_token=SecretStr(os.getenv("REPOLENS_GITHUB_TOKEN", "")),
         )
