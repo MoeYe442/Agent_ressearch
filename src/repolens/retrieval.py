@@ -2,11 +2,12 @@
 import hashlib
 import json
 import threading
+import re
 from uuid import uuid4
 from repolens.budget import BudgetManager,BudgetExceeded
 from repolens.model_gateway import ModelGateway
 from repolens.model_client import ProviderError
-from repolens.retrieval_chunks import chunk_snapshot,fuse_rankings,CHUNKER_VERSION
+from repolens.retrieval_chunks import chunk_snapshot,split_source,fuse_rankings,CHUNKER_VERSION
 from repolens.retrieval_http import EmbeddingClient,RerankClient,MilvusStore
 from repolens.evidence import EvidenceStore
 from repolens.document_scope import allows_path
@@ -107,10 +108,10 @@ class RetrievalService:
             if job['fingerprint']!=self.fingerprint():
                 raise ValueError('retrieval_configuration_changed')
             gateway.check()
-            chunks=chunk_snapshot(job['snapshot_id'],self.store)
+            chunks=chunk_snapshot(job['snapshot_id'],self.store,check=gateway.check)
             if not chunks or len(chunks)>10000:
                 raise ValueError('retrieval_chunk_limit')
-            self.vectors.ensure(budget.deadline)
+            gateway.check();self.vectors.ensure(budget.deadline);gateway.check()
             staged=[];offset=0
             while offset<len(chunks):
                 gateway.check()
@@ -149,12 +150,18 @@ class RetrievalService:
         if rerank and not self.rerank_configured:
             raise ValueError('rerank_not_configured')
         gateway.check()
+        self.embedding.validate_input([query])
         bound=len(query.encode())+1024
         vectors=gateway.external(lambda:self.embedding.embed([query],gateway.budget.deadline),bound,'embedding',context.task_id)
         gateway.check()
         ids=self.vectors.search(vectors[0],context.snapshot_id,job['id'],context.source_scope,20,gateway.budget.deadline)
         vector_hits=[]
         with self.db.connect() as conn:
+            eligible=conn.execute('SELECT 1 FROM retrieval_chunks WHERE index_id=? AND snapshot_id=?'+(' AND source_scope=?' if context.source_scope!='all' else '')+' LIMIT 1',(job['id'],context.snapshot_id,context.source_scope) if context.source_scope!='all' else (job['id'],context.snapshot_id)).fetchone()
+            if not ids and eligible:
+                job.update(status='failed',error_code='retrieval_vector_index_missing')
+                self.db.put('retrieval_jobs',job['id'],job)
+                raise ValueError('retrieval_vector_index_missing')
             for chunk_id in ids:
                 record=conn.execute('SELECT payload FROM retrieval_chunks WHERE id=? AND index_id=? AND snapshot_id=?',(chunk_id,job['id'],context.snapshot_id)).fetchone()
                 if record is None:
@@ -170,8 +177,20 @@ class RetrievalService:
         symbols=self.index.search_symbols(context.snapshot_id,query,20,scope=context.source_scope)
         symbols=[hit.model_copy(update={'end_line':min(hit.end_line,hit.start_line+119)}) for hit in symbols]
         hits=fuse_rankings({'keyword':keyword,'symbols':symbols,'vector':vector_hits},20)
-        excerpts=[self.store.read_evidence(context.snapshot_id,h.path,h.start_line,h.end_line).excerpt for h in hits]
+        bounded=[];excerpts=[];seen=set();terms=re.findall(r'\w+',query.casefold())
+        for hit in hits:
+            gateway.check()
+            evidence=self.store.read_evidence(context.snapshot_id,hit.path,hit.start_line,hit.end_line)
+            windows=split_source(hit.path,evidence.excerpt)
+            selected=min(windows,key=lambda w:(-sum(w['content'].casefold().count(term) for term in terms),w['start_line']))
+            start=hit.start_line+selected['start_line']-1;end=hit.start_line+selected['end_line']-1
+            key=(hit.path,start,end)
+            if key in seen:
+                continue
+            seen.add(key);bounded.append(hit.model_copy(update={'start_line':start,'end_line':end}));excerpts.append(selected['content'])
+        hits=bounded
         if rerank and hits:
+            self.reranker.validate_input(query,excerpts)
             bound=len(query.encode())+sum(len(text.encode()) for text in excerpts)+1024
             order=gateway.external(lambda:self.reranker.rank(query,excerpts,gateway.budget.deadline),bound,'rerank',context.task_id,output_bound=128)
             hits=[hits[i] for i in order]

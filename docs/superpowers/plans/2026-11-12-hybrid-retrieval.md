@@ -27,7 +27,7 @@
 1. 不同快照、generation、模型/维度和代码/文档 scope 不得混检；供应商伪造块 ID 不能越界。Task 1/3。
 2. 失败建库、重复提交、重启、服务不可达不能留下看似 ready 的索引或自动重发付费调用。Task 2/3/4。
 3. 查询辅助模型不得绕过共享预算、并发和取消；缺 usage、超预留、超时仍如实结算。Task 2/3。
-4. 空/重复/错序 Embedding、NaN、错误维度、重复/越界重排位置、超大响应和 redirect 必须拒绝，错误不泄露 key/body。Task 2。
+4. Embedding 索引缺失/重复/越界或无法唯一对应、NaN、错误维度、重复/越界重排位置、超大响应和 redirect 必须拒绝；合法乱序按唯一 index 还原输入顺序，错误不泄露 key/body。Task 2。此处按最终审查共识修正了“物理错序一律拒绝”的过严条款。
 5. 旧 task/intent/idempotency 默认 keyword；刷新和重试保留检索选项；降级/未知质量不得包装为 hybrid 成功。Task 4/5。
 
 ## Interfaces and files

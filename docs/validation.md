@@ -30,3 +30,5 @@
 ## V2.1 可配置检索（2026-11-12）
 
 首轮全量 280 passed，277.88s，含36项浏览器测试；compileall和pip check通过。15条离线三配置比较已导出，quality保持null。正式0.4.0服务默认keyword启动与页面检查通过，混合检索未配置时明确409；未启动Docker或调用真实Embedding/Rerank。详细方案和边界见 docs/hybrid-retrieval.md。最终独立审查待完成。
+
+V2.1 最终独立审查修复后：**292 passed，273.96s**，含36项浏览器测试；compileall和pip check通过。七类重要问题（含重新分级的上传计数）均RED→GREEN并完成整套回归。两项轻微诊断问题暂缓；真实服务待配置后验收。执行与取舍见 docs/hybrid-execution.md。正式默认keyword服务已重启验证，未配置hybrid拒绝也带正确零调用账本。

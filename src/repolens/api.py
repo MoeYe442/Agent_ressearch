@@ -136,13 +136,20 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
         budget = BudgetManager(settings)
         gateway = ModelGateway(None, budget, lambda event: None, service.stopping.is_set, "search")
         context = ToolContext(snapshot_id=snapshot_id, task_id="search", source_scope=body.scope)
-        if body.retrieval_mode == "hybrid":
-            hits = service.retrieval.search(body.query, context, gateway, rerank=body.rerank, limit=body.limit)
-            configuration = service.retrieval.ready(snapshot_id)["configuration"]
-        else:
-            hits = RepositoryIndex(db).search_text(snapshot_id, body.query, body.limit, scope=body.scope)
-            configuration = {"backend": "sqlite-fts5"}
-        rows = [{**hit.model_dump(), "evidence": EvidenceStore(db).read_evidence(snapshot_id, hit.path, hit.start_line, hit.end_line).model_dump()} for hit in hits]
+        configuration = {"backend": "sqlite-fts5"}
+        try:
+            if body.retrieval_mode == "hybrid":
+                index = service.retrieval.ready(snapshot_id)
+                configuration = {**index["configuration"], "index_id": index["id"], "rerank_model": settings.rerank_model if body.rerank else None}
+                context.retrieval_index_id = index["id"]
+                hits = service.retrieval.search(body.query, context, gateway, rerank=body.rerank, limit=body.limit)
+            else:
+                hits = RepositoryIndex(db).search_text(snapshot_id, body.query, body.limit, scope=body.scope)
+            rows = [{**hit.model_dump(), "evidence": EvidenceStore(db).read_evidence(snapshot_id, hit.path, hit.start_line, hit.end_line).model_dump()} for hit in hits]
+        except (ProviderError, ValueError) as exc:
+            code = exc.code if isinstance(exc, ProviderError) else str(exc)
+            status = 502 if isinstance(exc, ProviderError) else 409
+            return JSONResponse({"error_code": code, "snapshot_id": snapshot_id, "configuration": configuration, "usage": budget.snapshot().model_dump(), "role_usage": budget.roles(), "synthetic": settings.test_environment}, status_code=status)
         return {"snapshot_id": snapshot_id, "manifest_hash": snapshot.manifest_hash, "retrieval_mode": body.retrieval_mode, "rerank": body.rerank, "configuration": configuration, "hits": rows, "usage": budget.snapshot().model_dump(), "role_usage": budget.roles(), "synthetic": settings.test_environment}
 
     @app.post("/repositories", status_code=202)

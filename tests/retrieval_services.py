@@ -42,6 +42,7 @@ class RetrievalServices:
             for row in body['data']:self.records[row['chunk_id']]=row
             data={'upsertCount':len(body['data'])}
         elif path.endswith('/search'):
+            if getattr(self,'fail_search',False):return httpx.Response(503,text='SECRET_SERVICE_BODY')
             conditions=dict((key,json.loads(value)) for key,value in re.findall(r'(snapshot_id|index_id|source_scope) == ("(?:[^"\\]|\\.)*")',body['filter']))
             candidates=[r for r in self.records.values() if all(r.get(k)==v for k,v in conditions.items())]
             candidates.sort(key=lambda r:(-sum(a*b for a,b in zip(r['vector'],body['data'][0])),r['chunk_id']))

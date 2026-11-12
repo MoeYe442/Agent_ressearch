@@ -70,9 +70,13 @@ class EmbeddingClient:
         self.settings = settings
         self.http = BoundedHTTP(settings.embedding_url, settings.embedding_key, 'embedding', settings, transport)
 
-    def embed(self, texts, deadline):
+    @staticmethod
+    def validate_input(texts):
         if not 1 <= len(texts) <= 16 or any(not text or len(text.encode()) > 8000 for text in texts):
             raise ProviderError('embedding_input_limit')
+
+    def embed(self, texts, deadline):
+        self.validate_input(texts)
         data = self.http.post('/embeddings', {'model':self.settings.embedding_model, 'input':texts, 'encoding_format':'float'}, deadline)
         try:
             rows = data['data']
@@ -96,9 +100,13 @@ class RerankClient:
         self.settings = settings
         self.http = BoundedHTTP(settings.rerank_url, settings.rerank_key, 'rerank', settings, transport)
 
-    def rank(self, query, texts, deadline):
+    @staticmethod
+    def validate_input(query, texts):
         if not 1 <= len(texts) <= 20 or any(len(text.encode())>8000 for text in texts):
             raise ProviderError('rerank_input_limit')
+
+    def rank(self, query, texts, deadline):
+        self.validate_input(query,texts)
         data = self.http.post('/rerank', {'model':self.settings.rerank_model,'query':query,'documents':texts,'top_n':len(texts),'return_documents':False}, deadline)
         try:
             rows = data['results']
@@ -144,6 +152,14 @@ class MilvusStore:
                 raise ValueError()
             if any(fields[name]['type']!='VarChar' for name in ['snapshot_id','index_id','source_scope']):
                 raise ValueError()
+            for name,capacity in [('chunk_id',64),('snapshot_id',100),('index_id',32),('source_scope',8)]:
+                params={p['key']:p['value'] for p in fields[name]['params']}
+                if int(params['max_length'])<capacity:
+                    raise ValueError()
+            supplied={'chunk_id','vector','snapshot_id','index_id','source_scope'}
+            for name,field in fields.items():
+                if name not in supplied and field.get('nullable') is not True and field.get('defaultValue') is None:
+                    raise ValueError()
             if not any(i['fieldName']=='vector' and i['metricType']=='COSINE' for i in description['indexes']):
                 raise ValueError()
         except (KeyError,TypeError,ValueError):
@@ -159,7 +175,7 @@ class MilvusStore:
 
     def upsert(self, records, deadline):
         result = self.post('entities/upsert', {'data':records}, deadline)
-        if not isinstance(result,dict) or result.get('upsertCount')!=len(records):
+        if not isinstance(result,dict) or not integer(result.get('upsertCount')) or result['upsertCount']!=len(records):
             raise ProviderError('milvus_upsert_incomplete')
 
     def search(self, vector, snapshot_id, index_id, scope, limit, deadline):

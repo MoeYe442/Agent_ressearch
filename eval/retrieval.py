@@ -48,7 +48,11 @@ def run_retrieval(base_url,cases,root=None,timeout=960,synthetic=False,k=5):
                         index=wait_for(client,'/repositories/'+sid+'/retrieval-index','status',{'queued','building'},timeout)
                         row['index_usage']=index.get('usage');row['index_id']=index.get('id')
                         if index['status']!='ready':raise ValueError(index.get('error_code') or 'retrieval_index_not_ready')
-                    response=client.post('/repositories/'+sid+'/search',json={'query':case['query'],'retrieval_mode':mode,'rerank':rerank,'limit':20}).raise_for_status().json()
+                    http_response=client.post('/repositories/'+sid+'/search',json={'query':case['query'],'retrieval_mode':mode,'rerank':rerank,'limit':20})
+                    response=http_response.json()
+                    row.update(usage=response.get('usage'),role_usage=response.get('role_usage',{}),backend_configuration=response.get('configuration',{}))
+                    if http_response.status_code!=200:
+                        raise ValueError(response.get('error_code','retrieval_query_failed'))
                     row.update(status='succeeded',usage=response['usage'],role_usage=response['role_usage'],hits=response['hits'],backend_configuration=response['configuration'],**score_retrieval(case,response['hits'],sid,k))
                 except Exception as exc:row['error_code']=str(exc) if isinstance(exc,ValueError) else type(exc).__name__
                 row['elapsed_ms']=round((time.monotonic()-started)*1000,2);rows.append(row)

@@ -10,6 +10,11 @@ CHUNKER_VERSION = "ast-headings-window-v1"
 
 
 def split_source(path, text):
+    return list(iter_source(path,text))
+
+
+def iter_source(path, text, check=lambda:None):
+    check()
     lines = physical_lines(text)
     if any(len(line.encode('utf-8')) > 8000 for line in lines):
         raise ValueError('retrieval_line_too_large')
@@ -19,6 +24,7 @@ def split_source(path, text):
             tree = ast.parse(text)
             def walk(node, parents=()):
                 for child in ast.iter_child_nodes(node):
+                    check()
                     if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
                         name = '.'.join((*parents, child.name))
                         start = min([child.lineno] + [d.lineno for d in child.decorator_list])
@@ -33,15 +39,18 @@ def split_source(path, text):
     elif path.lower().endswith('.md'):
         heading = ''
         for i, line in enumerate(lines):
+            if i % 128 == 0:
+                check()
             if line.startswith('#'):
                 heading = line.lstrip('# ').strip()
             owners[i] = heading
     segments, start = [], 0
     for i in range(1, len(lines)+1):
+        if i % 128 == 0:
+            check()
         if i == len(lines) or owners[i] != owners[start]:
             segments.append((start, i, owners[start]))
             start = i
-    chunks = []
     for first, last, owner in segments:
         start = first
         while start < last:
@@ -50,18 +59,22 @@ def split_source(path, text):
                 size += len(lines[end].encode('utf-8'))
                 end += 1
             content = ''.join(lines[start:end])
-            chunks.append({'path': path, 'start_line': start+1, 'end_line': end, 'parent_symbol': owner, 'content': content, 'content_hash': hashlib.sha256(content.encode()).hexdigest(), 'source_scope': 'docs' if source_type(path)=='repository_document' else 'code', 'chunker_version': CHUNKER_VERSION})
+            check()
+            yield {'path': path, 'start_line': start+1, 'end_line': end, 'parent_symbol': owner, 'content': content, 'content_hash': hashlib.sha256(content.encode()).hexdigest(), 'source_scope': 'docs' if source_type(path)=='repository_document' else 'code', 'chunker_version': CHUNKER_VERSION}
             if end == last:
                 break
             start = max(start+1, end-20)
-    return chunks
 
 
-def chunk_snapshot(snapshot_id, store):
+def chunk_snapshot(snapshot_id, store, *, check=lambda:None, max_chunks=10000):
     snapshot = store.db.get_snapshot(snapshot_id)
     chunks = []
     for path in sorted(snapshot.manifest):
-        for chunk in split_source(path, store.file_text(snapshot_id, path)):
+        check()
+        for chunk in iter_source(path, store.file_text(snapshot_id, path),check):
+            check()
+            if len(chunks)>=max_chunks:
+                raise ValueError('retrieval_chunk_limit')
             chunk['snapshot_id'] = snapshot_id
             identity = {key: chunk[key] for key in ('snapshot_id','path','start_line','end_line','content_hash','chunker_version')}
             chunk['id'] = hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
