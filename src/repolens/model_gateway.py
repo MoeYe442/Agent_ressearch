@@ -31,7 +31,14 @@ class ModelGateway:
                 self.check()
                 bound = len(json.dumps([messages, tools], ensure_ascii=False).encode("utf-8")) + 1024 * (len(messages) + 1)
                 reservation = self.budget.reserve_model(bound, self.budget.settings.max_output_tokens, role, subtask_id)
-                self.event("model_started", role, subtask_id, call=self.budget.snapshot().model_calls, input_reserved=bound, output_reserved=reservation.output_tokens, usage=self.budget.snapshot().model_dump())
+                try:
+                    self.event("model_started", role, subtask_id, call=self.budget.snapshot().model_calls, input_reserved=bound, output_reserved=reservation.output_tokens, usage=self.budget.snapshot().model_dump())
+                    self.check()
+                except BaseException as exc:
+                    self.budget.release_unsent(reservation.id)
+                    if isinstance(exc, BudgetExceeded):
+                        self.event("model_aborted", role, subtask_id, error_code=str(exc), usage=self.budget.snapshot().model_dump())
+                    raise
                 try:
                     model = self.model.with_deadline(self.budget.deadline) if isinstance(self.model, HTTPChatModel) else self.model
                     turn = model.complete(messages, tools, max_output_tokens=reservation.output_tokens)

@@ -98,3 +98,44 @@ def test_failure_and_budget_events_are_not_succeeded(indexed):
         graph=client.get('/tasks/'+task['id']+'/graph').json()
         assert graph['status']==report['status']==done['status']
         assert 'budget_exhausted' in report['limitations']
+
+
+@pytest.mark.parametrize('throws',[False,True])
+def test_final_reference_recheck_keeps_partial_terminal_atomic(indexed,monkeypatch,throws):
+    from repolens.tasks import TaskService
+    from repolens.evidence import EvidenceStore
+    finished=threading.Event();save=TaskService._save;validate=EvidenceStore.validate_evidence
+    bad=indexed[4].read_evidence(indexed[2].id,'app.py',9,11).id
+    def persist(self,task,type,*args,**kwargs):
+        result=save(self,task,type,*args,**kwargs)
+        if type=='review_completed':finished.set()
+        return result
+    def check(self,evidence_id,*args,**kwargs):
+        if finished.is_set() and evidence_id==bad:
+            if throws:raise RuntimeError('SECRET_INTERNAL_FAILURE')
+            return False
+        return validate(self,evidence_id,*args,**kwargs)
+    monkeypatch.setattr(TaskService,'_save',persist);monkeypatch.setattr(EvidenceStore,'validate_evidence',check)
+    with TestClient(create_app(indexed[0],CollaborativeModel()),client=('127.0.0.1',1)) as client:
+        task=client.post('/tasks',json={'snapshot_id':indexed[2].id,'question':'Compare docs','mode':'collaborative'}).json()
+        done=wait(client,task['id']);graph=client.get('/tasks/'+task['id']+'/graph').json()
+        response=client.get('/tasks/'+task['id']+'/report');report=response.json()
+        assert response.status_code==200 and done['status']==graph['status']==report['status']=='partial'
+        assert len(report['claims'])==1 and report['usage']==done['usage']
+        assert 'SECRET_INTERNAL_FAILURE' not in response.text
+
+
+def test_unexpected_worker_error_updates_graph_report_and_usage_atomically(indexed,monkeypatch):
+    from repolens.orchestration import CollaborativeRunner
+    original=CollaborativeRunner.run
+    def crash(self,*args,**kwargs):
+        original(self,*args,**kwargs)
+        raise RuntimeError('SECRET_INTERNAL_FAILURE')
+    monkeypatch.setattr(CollaborativeRunner,'run',crash)
+    with TestClient(create_app(indexed[0],CollaborativeModel()),client=('127.0.0.1',1)) as client:
+        task=client.post('/tasks',json={'snapshot_id':indexed[2].id,'question':'Question','mode':'collaborative'}).json()
+        done=wait(client,task['id']);graph=client.get('/tasks/'+task['id']+'/graph').json()
+        response=client.get('/tasks/'+task['id']+'/report');report=response.json()
+        assert response.status_code==200 and done['status']==graph['status']==report['status']=='failed'
+        assert report['usage']==done['usage'] and done['error_code']=='worker_error'
+        assert 'SECRET_INTERNAL_FAILURE' not in response.text

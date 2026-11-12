@@ -1,4 +1,5 @@
 import httpx
+import json
 import pytest
 from repolens.model_client import HTTPChatModel, ProviderError
 from repolens.config import Settings
@@ -31,3 +32,18 @@ def test_http_error_does_not_leak_provider_body(monkeypatch, tmp_path):
 def test_http_adapter_reports_missing_usage(monkeypatch, tmp_path):
     model = connect(monkeypatch, tmp_path, httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]}))
     assert model.complete([], [], 100).usage is None
+
+
+@pytest.mark.parametrize('tools',[[],[{'type':'function','function':{'name':'read_file','parameters':{'type':'object','properties':{}}}}]])
+def test_adapter_omits_tool_fields_when_no_tools(monkeypatch,tmp_path,tools):
+    original=httpx.AsyncClient
+    def handler(request):
+        body=json.loads(request.content)
+        if tools:
+            assert body['tools']==tools and body['tool_choice']=='auto'
+        else:
+            assert 'tools' not in body and 'tool_choice' not in body
+        return httpx.Response(200,json={'choices':[{'message':{'content':'{}'}}]})
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kwargs:original(**kwargs,transport=httpx.MockTransport(handler)))
+    model=HTTPChatModel(Settings(workspace_root=tmp_path,data_dir=tmp_path/'data',model_name='test'))
+    assert model.complete([],tools,100).content=='{}'

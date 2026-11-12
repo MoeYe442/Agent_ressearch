@@ -65,3 +65,18 @@ def test_inflight_usage_settles_before_cancelled_terminal(tmp_path):
     with pytest.raises(BudgetExceeded,match='cancelled'):gateway.complete([],[],'docs','d')
     assert gateway.budget.snapshot().input_tokens==19
     assert not gateway.budget.snapshot().estimated
+
+
+@pytest.mark.parametrize('reason',['cancelled','time_budget_exhausted'])
+def test_cancel_during_started_event_does_not_enter_provider(tmp_path,reason):
+    called=[];cancel=threading.Event();budget=BudgetManager(settings(tmp_path))
+    class Model:
+        def complete(self,*args,**kwargs):called.append(True);return ModelTurn()
+    def emit(event):
+        if event.type=='model_started':
+            if reason=='cancelled':cancel.set()
+            else:budget.deadline=time.monotonic()-1
+    gateway=ModelGateway(Model(),budget,emit,cancel.is_set,'task')
+    with pytest.raises(BudgetExceeded,match=reason):gateway.complete([],[],'planner','p')
+    assert not called and not budget.pending
+    assert budget.snapshot().model_calls==0 and budget.snapshot().input_tokens==0

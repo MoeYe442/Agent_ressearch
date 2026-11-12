@@ -97,6 +97,14 @@ def test_single_task_remains_compatible(browser,collaborative_live):
     page.close()
 
 
+def test_explicit_new_analysis_resets_default_mode(browser,collaborative_live):
+    url,path=collaborative_live()
+    page=browser.new_page();submit(page,url,path)
+    page.get_by_role('button',name='新建分析').click()
+    expect(page.get_by_label('分析模式',exact=True)).to_have_value('single')
+    page.close()
+
+
 def test_cancel_does_not_launch_followup(browser,collaborative_live):
     entered,release=threading.Event(),threading.Event()
     class PausedPlanner(CollaborativeModel):

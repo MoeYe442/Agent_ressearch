@@ -60,3 +60,17 @@ def test_settlement_is_once_only_and_measured_usage_replaces_reserve(tmp_path):
     budget.settle_model(r.id,ModelUsage(input_tokens=12,output_tokens=5))
     budget.settle_model(r.id,ModelUsage(input_tokens=12,output_tokens=5))
     assert budget.snapshot().input_tokens==12 and not budget.snapshot().estimated
+
+
+def test_abnormal_provider_usage_latches_stop_after_other_reservation_releases(tmp_path):
+    budget=BudgetManager(settings(tmp_path,max_tokens=100))
+    anomalous=budget.reserve_model(10,10,'code','a')
+    peer=budget.reserve_model(10,10,'docs','b')
+    budget.settle_model(anomalous.id,ModelUsage(input_tokens=30,output_tokens=10))
+    with pytest.raises(BudgetExceeded,match='provider_usage_exceeded_reservation'):
+        budget.reserve_model(1,1,'reviewer','r')
+    budget.settle_model(peer.id,ModelUsage(input_tokens=1,output_tokens=1))
+    assert budget.snapshot().input_tokens==31 and budget.snapshot().output_tokens==11
+    assert not budget.pending
+    with pytest.raises(BudgetExceeded,match='provider_usage_exceeded_reservation'):
+        budget.reserve_model(1,1,'reviewer','r')

@@ -24,3 +24,5 @@
 ## V2.0 协作增量（2026-11-12）
 
 完整测试：221 passed，213.76s（含 29 项浏览器回归）；compileall src 和 pip check 通过。新增共享原子预算、受限文档范围、真实 StateGraph 并行/评审循环、mode/API/SQLite 原子终态、工作台与同预算比较。旧 165 项回归保留。详细范围、测试替身比较结果和限制见 docs/collaborative-research.md。正式 0.3.0 服务启动与页面检查通过；真实模型未配置，两种模式均明确 model_not_configured，没有真实效果评测。最终独立审查结果另记。
+
+最终独立审查修复后：**235 passed，201.17s**（含 30 项浏览器测试）；compileall 与 pip check 再次通过。八项重要审查问题及一项重新分级问题均 RED→GREEN，最终整套回归通过；一项分工卡片等待标签问题暂缓。审查范围、执行取舍与逐项回归见 docs/collaborative-research.md、docs/collaborative-execution.md。正式服务已重启并再次通过页面/默认模式检查。

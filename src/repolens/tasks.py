@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from repolens.agent import AgentRunner
 from repolens.indexing import build_index
-from repolens.models import AnalysisTask, RepositorySnapshot, TaskEvent, ToolContext, Usage
+from repolens.models import AnalysisTask, AnalysisResult, RepositorySnapshot, TaskEvent, ToolContext, Usage
 from repolens.repositories import checked_repo, create_snapshot
 from repolens.tools import ToolRegistry
 from repolens.github_client import GitHubClient, GitHubSource
@@ -166,8 +166,18 @@ class TaskService:
                 if kind == "task":
                     with self.lock:
                         task = self.get(key)
-                        task.status, task.error_code = "failed", "worker_error"
-                        self._save(task, "task_finished", {"status": "failed", "error_code": "worker_error"})
+                        task.status = "cancelled" if task.cancel_requested else "failed"
+                        task.error_code = "worker_error"
+                        task.usage = task.usage or Usage(estimated=True)
+                        graph = None
+                        if task.mode == "collaborative":
+                            try:
+                                graph = self.db.get("graphs", task.id)
+                            except KeyError:
+                                graph = {"task_id": task.id, "mode": task.mode, "plan": [], "subtasks": [], "reviews": [], "round": 0, "issues": []}
+                            graph = {**graph, "status": task.status, "issues": [*graph.get("issues", []), "worker_error"]}
+                        report = AnalysisResult(status=task.status, mode=task.mode, usage=task.usage, limitations=["worker_error"], markdown="# RepoLens investigation\n\n- worker_error", role_usage=(graph or {}).get("role_usage", {}))
+                        self._save(task, "task_finished", {"status": task.status, "error_code": "worker_error", "usage": task.usage.model_dump()}, report=report, graph=graph)
             finally:
                 self.queue.task_done()
 

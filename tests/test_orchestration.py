@@ -25,6 +25,64 @@ def test_graph_runs_code_and_docs_with_shared_budget(indexed):
     assert len([e for e in events if e.type=='subtask_started'])==2
 
 
+def test_reviewer_cannot_support_claims_without_presented_evidence(indexed):
+    from repolens.models import ModelTurn,ModelUsage,ToolCall
+    class ManyEvidence(CollaborativeModel):
+        omitted=set()
+        def complete(self,messages,tools,max_output_tokens):
+            system=messages[0]['content']
+            if 'ROLE: planner' in system:
+                return self.turn({'tasks':[{'id':'a','role':'code','question':'first seven','depends_on':[]},{'id':'b','role':'code','question':'next six','depends_on':[]}]})
+            if 'ROLE: reviewer' in system:
+                data=json.loads(messages[1]['content'])
+                self.omitted={ref for c in data['claims'] for ref in c['evidence_ids']}-{e['id'] for e in data['evidence']}
+                return self.turn({'items':[{'claim_id':c['claim_id'],'verdict':'supported','evidence_ids':c['evidence_ids'],'reason':'fixture'} for c in data['claims']],'followups':[]})
+            outputs=[m for m in messages if m['role']=='tool']
+            if not outputs:
+                lines=range(1,8) if 'first seven' in messages[1]['content'] else range(8,14)
+                return ModelTurn(tool_calls=[ToolCall(id=str(i),name='read_file',arguments={'path':'app.py','start_line':i,'end_line':i}) for i in lines],usage=ModelUsage(input_tokens=100,output_tokens=20))
+            return self.turn({'claims':[{'text':'Line '+str(i),'evidence_ids':json.loads(m['content'])['evidence_ids']} for i,m in enumerate(outputs)],'limitations':[]})
+    model=ManyEvidence()
+    result,_,_,_=run(indexed,model)
+    assert not model.omitted
+    assert len(result.claims)==13 and result.status=='partial'
+    assert any(c.review_status=='not_reviewed' for c in result.claims)
+    assert 'review_evidence_limit' in result.limitations
+
+
+def test_unexpected_branch_exception_preserves_completed_other_branch(indexed,monkeypatch):
+    import threading
+    from repolens.agent import AgentRunner
+    completed=threading.Event()
+    original=AgentRunner.run
+    def investigate(self,question,context,*args,**kwargs):
+        if context.source_scope=='docs':
+            assert completed.wait(5)
+            raise RuntimeError('unexpected internal tool failure')
+        result=original(self,question,context,*args,**kwargs)
+        completed.set()
+        return result
+    monkeypatch.setattr(AgentRunner,'run',investigate)
+    result,_,runner,_=run(indexed)
+    assert result.status=='partial' and len(result.claims)==1
+    assert len(runner.last_view['subtasks'])==2
+    assert 'subtask_execution_failed' in result.limitations
+
+
+def test_missing_documents_is_reported_even_when_planner_omits_docs(indexed):
+    settings,db,snapshot,_,_,_=indexed
+    snapshot.manifest={path:value for path,value in snapshot.manifest.items() if not path.endswith('.md')}
+    db.put_snapshot(snapshot)
+    class CodeOnly(CollaborativeModel):
+        def complete(self,messages,*args,**kwargs):
+            if 'ROLE: planner' in messages[0]['content']:
+                return self.turn({'tasks':[{'id':'code','role':'code','question':'Read code','depends_on':[]}]})
+            return super().complete(messages,*args,**kwargs)
+    result,_,runner,_=run(indexed,CodeOnly())
+    assert result.status=='partial' and result.claims
+    assert 'missing_documents' in result.limitations and 'missing_documents' in runner.last_view['issues']
+
+
 @pytest.mark.parametrize('tasks',[
     [{'id':'a','role':'code','question':'x','depends_on':['foreign']}],
     [{'id':'a','role':'code','question':'x','depends_on':['b']},{'id':'b','role':'docs','question':'y','depends_on':['a']}],

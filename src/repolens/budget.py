@@ -28,10 +28,13 @@ class BudgetManager:
         self.usage = Usage()
         self.pending = {}
         self.unknown_usage = False
+        self.stop_reason = None
         self.subtask_tools = {}
         self.role_usage = {}
 
     def check(self):
+        if self.stop_reason:
+            raise BudgetExceeded(self.stop_reason)
         if time.monotonic() >= self.deadline:
             raise BudgetExceeded("time_budget_exhausted")
 
@@ -62,12 +65,31 @@ class BudgetManager:
             if usage_or_none is None or failed:
                 self.unknown_usage = True
             else:
+                if usage_or_none.input_tokens > reservation.input_tokens or usage_or_none.output_tokens > reservation.output_tokens:
+                    self.stop_reason = "provider_usage_exceeded_reservation"
                 delta_in = usage_or_none.input_tokens - reservation.input_tokens
                 delta_out = usage_or_none.output_tokens - reservation.output_tokens
                 self.usage.input_tokens += delta_in
                 self.usage.output_tokens += delta_out
                 self.role_usage[reservation.role]["input_tokens"] += delta_in
                 self.role_usage[reservation.role]["output_tokens"] += delta_out
+            self.usage.revision += 1
+
+    def release_unsent(self, reservation_id):
+        """Rollback only a request that has not entered the provider."""
+        with self.lock:
+            reservation = self.pending.pop(reservation_id, None)
+            if reservation is None:
+                return
+            self.usage.model_calls -= 1
+            self.usage.input_tokens -= reservation.input_tokens
+            self.usage.output_tokens -= reservation.output_tokens
+            row = self.role_usage[reservation.role]
+            row["model_calls"] -= 1
+            row["input_tokens"] -= reservation.input_tokens
+            row["output_tokens"] -= reservation.output_tokens
+            if row["model_calls"] == 0:
+                self.role_usage.pop(reservation.role)
             self.usage.revision += 1
 
     def reserve_tool(self, subtask_id=None):

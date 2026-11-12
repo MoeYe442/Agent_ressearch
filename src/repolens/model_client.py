@@ -36,13 +36,16 @@ class HTTPChatModel:
         return asyncio.run(self._complete(messages, tools, max_output_tokens))
 
     async def _complete(self, messages, tools, max_output_tokens):
+        payload = {"model": self.settings.model_name, "messages": messages, "max_tokens": max_output_tokens}
+        if tools:
+            payload.update(tools=tools, tool_choice="auto")
         timeout = self.settings.provider_timeout
         if self.deadline is not None:
             timeout = max(0.01, min(timeout, self.deadline - time.monotonic()))
         try:
             async with asyncio.timeout(timeout):
                 async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, verify=self.ssl_context) as client:
-                    async with client.stream("POST", self.settings.model_url.rstrip("/") + "/chat/completions", headers={"Authorization": "Bearer " + self.settings.model_key.get_secret_value()}, json={"model": self.settings.model_name, "messages": messages, "tools": tools, "tool_choice": "auto", "max_tokens": max_output_tokens}) as response:
+                    async with client.stream("POST", self.settings.model_url.rstrip("/") + "/chat/completions", headers={"Authorization": "Bearer " + self.settings.model_key.get_secret_value()}, json=payload) as response:
                         if response.status_code != 200:
                             raise ProviderError(f"provider_http_{response.status_code}", response.status_code in {408, 429, 500, 502, 503, 504})
                         body = bytearray()

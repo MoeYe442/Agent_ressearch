@@ -23,6 +23,25 @@ def test_real_tools_and_verified_report(indexed):
     assert any(e.type == "tool_completed" and 'self.store.save' in json.dumps(e.payload) for e in events)
 
 
+def test_failed_search_cannot_contribute_unpresented_evidence(indexed,monkeypatch):
+    registry=indexed[5];original=registry.evidence.read_evidence;created=[]
+    def read(*args,**kwargs):
+        if len(created)==1:
+            created.append(None)
+            raise ValueError('fixture_second_hit_failed')
+        item=original(*args,**kwargs);created.append(item.id);return item
+    monkeypatch.setattr(registry.evidence,'read_evidence',read)
+    class FailedSearch:
+        def complete(self,messages,*args,**kwargs):
+            if not any(m['role']=='tool' for m in messages):
+                return ModelTurn(tool_calls=[ToolCall(id='search',name='search_text',arguments={'query':'status','limit':2})])
+            return ModelTurn(content=json.dumps({'claims':[{'text':'Unseen text supports this','evidence_ids':[created[0]]}],'limitations':[]}))
+    result,events=run(indexed,FailedSearch())
+    failed=[e for e in events if e.type=='tool_completed' and e.payload['status']=='error']
+    assert failed and not failed[0].payload['evidence_ids'] and failed[0].payload['data'] is None
+    assert not result.claims and not result.evidence_ids and result.status=='partial'
+
+
 class BadTool:
     def __init__(self, name, args):
         self.name, self.args, self.round = name, args, 0

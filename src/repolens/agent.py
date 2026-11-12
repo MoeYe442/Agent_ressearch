@@ -93,7 +93,8 @@ class AgentRunner:
                         return finish("partial", str(exc))
                     event("tool_started", tool=call.name, arguments=call.arguments)
                     result = self.registry.invoke(call.name, call.arguments, context)
-                    observed.update(result.evidence_ids)
+                    if result.status == "ok":
+                        observed.update(result.evidence_ids)
                     event("tool_completed", tool=call.name, **result.model_dump())
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": result.model_dump_json()})
                     if stopped():

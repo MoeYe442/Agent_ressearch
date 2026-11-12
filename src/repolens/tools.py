@@ -80,6 +80,10 @@ class ToolRegistry:
             result.error_code = "invalid_arguments"
         except (ValueError, KeyError, OSError) as exc:
             result.error_code = str(exc) if isinstance(exc, ValueError) else "not_found_or_unreadable"
+        if result.status != "ok":
+            # A partially accumulated ID is not evidence delivered to the model.
+            result.evidence_ids = []
+            result.data = None
         result.elapsed_ms = round((time.monotonic() - start) * 1000, 3)
         self.db.put("invocations", result.invocation_id, {"task_id": context.task_id, "snapshot_id": context.snapshot_id, "tool_name": name, "arguments": arguments, **result.model_dump()})
         return result
