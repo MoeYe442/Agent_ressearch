@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -14,7 +15,7 @@ from repolens.model_client import configured_model
 from repolens.storage import Database
 from repolens.tasks import TaskService, TERMINAL
 from repolens import __version__
-from repolens.models import RepositorySnapshot
+from repolens.models import RepositorySnapshot, AnalysisTask, AnalysisResult
 
 
 class ImportRequest(BaseModel):
@@ -36,6 +37,7 @@ class TaskRequest(BaseModel):
     snapshot_id: str = Field(min_length=1, max_length=100)
     question: str = Field(min_length=1, max_length=10000, pattern=r"\S")
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
+    mode: Literal["single", "collaborative"] = "single"
 
 
 def create_app(settings, model=None, *, github_client_factory=None):
@@ -107,11 +109,19 @@ def create_app(settings, model=None, *, github_client_factory=None):
     def submit(body: TaskRequest):
         # Index is committed before a snapshot becomes eligible for analysis.
         db.get("indexes", body.snapshot_id)
-        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key)
+        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key, mode=body.mode)
 
     @app.get("/tasks")
     def tasks():
-        return db.all("tasks")
+        return [AnalysisTask.model_validate(raw) for raw in db.all("tasks")]
+
+    @app.get("/tasks/{task_id}/graph")
+    def graph(task_id: str):
+        task = service.get(task_id)
+        try:
+            return db.get("graphs", task_id)
+        except KeyError:
+            return {"task_id": task.id, "mode": task.mode, "status": task.status, "plan": [], "subtasks": [], "reviews": [], "round": 0, "issues": []}
 
     @app.get("/tasks/{task_id}")
     def task(task_id: str):
@@ -125,7 +135,7 @@ def create_app(settings, model=None, *, github_client_factory=None):
     def report(task_id: str):
         task = service.get(task_id)
         try:
-            result = db.get("reports", task_id)
+            result = AnalysisResult.model_validate(db.get("reports", task_id)).model_dump(mode="json")
             if task.status not in TERMINAL or result["status"] != task.status:
                 return JSONResponse({"error_code": "report_not_ready"}, status_code=409)
             return result

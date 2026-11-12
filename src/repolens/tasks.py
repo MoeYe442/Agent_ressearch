@@ -11,6 +11,7 @@ from repolens.tools import ToolRegistry
 from repolens.github_client import GitHubClient, GitHubSource
 from repolens.github_import import import_github_snapshot
 from repolens.import_storage import cleanup_import
+from repolens.orchestration import CollaborativeRunner
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -38,7 +39,12 @@ class TaskService:
                 task = AnalysisTask.model_validate(payload)
                 if task.status == "running":
                     task.status, task.error_code = "failed", "interrupted"
-                    self._save(task, "task_finished", {"status": "failed", "error_code": "interrupted"})
+                    try:
+                        graph = self.db.get("graphs", task.id)
+                        graph = {**graph, "status": "failed", "issues": [*graph.get("issues", []), "interrupted"]}
+                    except KeyError:
+                        graph = None
+                    self._save(task, "task_finished", {"status": "failed", "error_code": "interrupted"}, graph=graph)
                 elif task.status == "queued":
                     self.queue.put(("task", task.id))
             for payload in self.db.all("snapshots"):
@@ -63,9 +69,9 @@ class TaskService:
         if self.worker:
             self.worker.join()  # drain/cancel active work; no old worker may publish after return
 
-    def _save(self, task, type, payload=None, report=None):
+    def _save(self, task, type, payload=None, report=None, graph=None):
         task.updated_at = now()
-        return self.db.save_task_event(task, TaskEvent(type=type, payload=payload or {}), report=report)
+        return self.db.save_task_event(task, TaskEvent(type=type, payload=payload or {}), report=report, graph=graph)
 
     def import_repository(self, path, idempotency_key=None):
         source = checked_repo(path, self.settings)
@@ -97,19 +103,21 @@ class TaskService:
             self.queue.put(("import", snapshot_id))
         return snapshot
 
-    def submit(self, snapshot_id, question, idempotency_key=None):
+    def submit(self, snapshot_id, question, idempotency_key=None, *, mode="single"):
+        if mode not in {"single", "collaborative"}:
+            raise ValueError("invalid_mode")
         with self.lock:
             if idempotency_key:
                 try:
                     prior = self.db.get("idempotency", idempotency_key)
-                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question:
+                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question or prior.get("mode", "single") != mode:
                         raise ValueError("idempotency_conflict")
                     return self.get(prior["task_id"])
                 except KeyError:
                     pass
             if self.db.get_snapshot(snapshot_id).status != "ready":
                 raise ValueError("snapshot_not_ready")
-            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, created_at=now(), updated_at=now())
+            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now())
             # Single process submission lock; key, task and first event share one transaction.
             with self.db.connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
@@ -118,7 +126,7 @@ class TaskService:
                 conn.execute("INSERT INTO events VALUES (?,?,?)", (task.id, 1, event.model_dump_json()))
                 if idempotency_key:
                     import json
-                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id})))
+                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id, "mode": mode})))
             self.queue.put(("task", task.id))
             return task
 
@@ -210,10 +218,18 @@ class TaskService:
             with self.lock:
                 current = self.get(task_id)
                 if "usage" in event.payload:
-                    current.usage = Usage.model_validate(event.payload["usage"])
-                self._save(current, event.type, event.payload)
+                    usage = Usage.model_validate(event.payload["usage"])
+                    if current.usage is None or usage.revision >= current.usage.revision:
+                        current.usage = usage
+                graph = event.payload.get("graph")
+                payload = event.payload
+                if graph is not None:
+                    graph = {**graph, "status": current.status}
+                    payload = {**payload, "graph": graph}
+                self._save(current, event.type, payload, graph=graph)
 
-        result = AgentRunner(self.model, self.registry, self.settings).run(task.question, ToolContext(snapshot_id=task.snapshot_id, task_id=task_id), emit, cancelled)
+        runner = CollaborativeRunner(self.model, self.registry, self.settings) if task.mode == "collaborative" else AgentRunner(self.model, self.registry, self.settings)
+        result = runner.run(task.question, ToolContext(snapshot_id=task.snapshot_id, task_id=task_id), emit, cancelled)
         with self.lock:
             task = self.get(task_id)
             task.status = "cancelled" if task.cancel_requested else result.status
@@ -221,4 +237,7 @@ class TaskService:
             task.usage = result.usage
             if result.status == "failed":
                 task.error_code = result.limitations[0] if result.limitations else "analysis_failed"
-            self._save(task, "task_finished", {"status": task.status, "error_code": task.error_code, "usage": task.usage.model_dump()}, report=result)
+            graph = getattr(runner, "last_view", None)
+            if graph is not None:
+                graph = {**graph, "status": task.status}
+            self._save(task, "task_finished", {"status": task.status, "error_code": task.error_code, "usage": task.usage.model_dump()}, report=result, graph=graph)

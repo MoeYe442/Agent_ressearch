@@ -49,7 +49,7 @@ class Database:
     def get_snapshot(self, snapshot_id):
         return RepositorySnapshot.model_validate(self.get("snapshots", snapshot_id))
 
-    def save_task_event(self, task, event, report=None):
+    def save_task_event(self, task, event, report=None, graph=None):
         """Task state and its corresponding event commit atomically."""
         from datetime import datetime, timezone
         with self.connect() as conn:
@@ -59,6 +59,8 @@ class Database:
             conn.execute("INSERT OR REPLACE INTO entities VALUES ('tasks',?,?)", (task.id, task.model_dump_json()))
             if report is not None:
                 conn.execute("INSERT OR REPLACE INTO entities VALUES ('reports',?,?)", (task.id, report.model_dump_json()))
+            if graph is not None:
+                conn.execute("INSERT OR REPLACE INTO entities VALUES ('graphs',?,?)", (task.id, json.dumps(graph, ensure_ascii=False)))
             conn.execute("INSERT INTO events VALUES (?,?,?)", (task.id, sequence, event.model_dump_json()))
         return event
 
