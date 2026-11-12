@@ -7,11 +7,11 @@ from repolens.api import create_app
 
 
 @contextmanager
-def running_app(settings, model):
+def running_app(settings, model, **app_options):
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
-    server = uvicorn.Server(uvicorn.Config(create_app(settings, model), log_level="error"))
+    server = uvicorn.Server(uvicorn.Config(create_app(settings, model, **app_options), log_level="error"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()
     try:

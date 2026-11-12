@@ -32,7 +32,7 @@ class RepositoryIndex:
         return [SearchHit(path=row["path"], start_line=int(row["start_line"]), end_line=int(row["end_line"]), score=-row["rank"]) for row in rows]
 
 
-def build_index(snapshot, db):
+def build_index(snapshot, db, *, cancelled=lambda: False):
     RepositoryIndex(db)
     store = EvidenceStore(db)
     summary = IndexSummary()
@@ -40,6 +40,8 @@ def build_index(snapshot, db):
         conn.execute("DELETE FROM symbols WHERE snapshot_id=?", (snapshot.id,))
         conn.execute("DELETE FROM text_chunks WHERE snapshot_id=?", (snapshot.id,))
         for path in sorted(snapshot.manifest):
+            if cancelled():
+                raise ValueError("import_interrupted")
             text = store.file_text(snapshot.id, path, allow_importing=True)
             summary.files += 1
             lines = physical_lines(text)
@@ -74,6 +76,8 @@ def build_index(snapshot, db):
                 for number, line in enumerate(lines, 1):
                     if line.startswith("#"):
                         record(line.lstrip("# "), number, number)
+        if cancelled():
+            raise ValueError("import_interrupted")
         conn.execute("INSERT OR REPLACE INTO entities VALUES ('indexes',?,?)", (snapshot.id, summary.model_dump_json()))
         snapshot.status = "ready"
         conn.execute("INSERT OR REPLACE INTO entities VALUES ('snapshots',?,?)", (snapshot.id, snapshot.model_dump_json()))

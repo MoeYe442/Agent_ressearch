@@ -10,6 +10,7 @@ from repolens.repositories import checked_repo, create_snapshot
 from repolens.tools import ToolRegistry
 from repolens.github_client import GitHubClient, GitHubSource
 from repolens.github_import import import_github_snapshot
+from repolens.import_storage import cleanup_import
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -49,14 +50,18 @@ class TaskService:
                     has_index = False
                 if snapshot.status == "importing" or (snapshot.status == "ready" and not has_index):
                     snapshot.status, snapshot.error_code = "failed", "interrupted_import"
+                    if not cleanup_import(self.settings, snapshot.id, snapshot=True, download=True):
+                        snapshot.error_code = "interrupted_import_cleanup_failed"
                     self.db.put_snapshot(snapshot)
+                elif snapshot.status == "ready":
+                    cleanup_import(self.settings, snapshot.id, download=True)
             self.worker = threading.Thread(target=self._work, name="repolens-worker", daemon=True)
             self.worker.start()
 
     def stop(self):
         self.stopping.set()
         if self.worker:
-            self.worker.join(timeout=self.settings.provider_timeout + 2)
+            self.worker.join()  # drain/cancel active work; no old worker may publish after return
 
     def _save(self, task, type, payload=None, report=None):
         task.updated_at = now()
@@ -74,6 +79,8 @@ class TaskService:
         snapshot_id = uuid4().hex
         snapshot = RepositorySnapshot(id=snapshot_id, source=source, source_type=source_type, requested_ref=ref, root=self.settings.data_dir.resolve() / "snapshots" / snapshot_id)
         with self.lock:
+            if self.stopping.is_set():
+                raise ValueError("service_stopping")
             if idempotency_key:
                 try:
                     prior = self.db.get("import_idempotency", idempotency_key)
@@ -157,27 +164,36 @@ class TaskService:
     def _import(self, snapshot_id):
         snapshot = self.db.get_snapshot(snapshot_id)
         archive_path = None
+        download_owned = False
         try:
+            if self.stopping.is_set():
+                raise ValueError("import_interrupted")
             if snapshot.source_type == "github":
                 adapter = self.github_client_factory(self.settings)
+                adapter.cancelled = self.stopping.is_set
                 resolved = adapter.resolve(GitHubSource.parse(snapshot.source, snapshot.requested_ref))
                 snapshot.commit_sha = resolved.commit_sha
                 self.db.put_snapshot(snapshot)
                 archive_path = self.settings.data_dir.resolve() / "downloads" / f"{snapshot_id}.zip"
                 adapter.download_archive(resolved, archive_path)
-                snapshot = import_github_snapshot(resolved, archive_path, self.settings, snapshot_id)
+                download_owned = True
+                snapshot = import_github_snapshot(resolved, archive_path, self.settings, snapshot_id, cancelled=self.stopping.is_set)
             else:
                 snapshot = create_snapshot(snapshot.source, self.settings, snapshot_id)
             snapshot.status = "importing"
             self.db.put_snapshot(snapshot)
-            build_index(snapshot, self.db)
+            build_index(snapshot, self.db, cancelled=self.stopping.is_set)
+            if self.stopping.is_set():
+                raise ValueError("import_interrupted")
         except Exception as exc:
             snapshot.status = "failed"
             snapshot.error_code = str(exc) if isinstance(exc, ValueError) else "import_failed"
+            if not cleanup_import(self.settings, snapshot_id, snapshot=True, download=download_owned):
+                snapshot.error_code = "import_cleanup_failed"
             self.db.put_snapshot(snapshot)
         finally:
-            if archive_path is not None:
-                archive_path.unlink(missing_ok=True)
+            if download_owned:
+                cleanup_import(self.settings, snapshot_id, download=True)
 
     def _execute(self, task_id):
         with self.lock:

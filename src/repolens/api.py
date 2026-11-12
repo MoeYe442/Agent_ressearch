@@ -13,6 +13,8 @@ from repolens.evidence import EvidenceStore
 from repolens.model_client import configured_model
 from repolens.storage import Database
 from repolens.tasks import TaskService, TERMINAL
+from repolens import __version__
+from repolens.models import RepositorySnapshot
 
 
 class ImportRequest(BaseModel):
@@ -46,7 +48,7 @@ def create_app(settings, model=None, *, github_client_factory=None):
         yield
         await asyncio.to_thread(service.stop)
 
-    app = FastAPI(title="RepoLens", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="RepoLens", version=__version__, lifespan=lifespan)
     app.state.service, app.state.db = service, db
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
 
@@ -78,7 +80,7 @@ def create_app(settings, model=None, *, github_client_factory=None):
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "model_configured": service.model is not None, "test_environment": settings.test_environment, "workspace_root": str(settings.workspace_root.resolve()), "version": "0.1.0"}
+        return {"status": "ok", "model_configured": service.model is not None, "test_environment": settings.test_environment, "workspace_root": str(settings.workspace_root.resolve()), "version": __version__, "github_import": True}
 
     @app.post("/repositories", status_code=202)
     def import_repository(body: ImportRequest):
@@ -88,7 +90,7 @@ def create_app(settings, model=None, *, github_client_factory=None):
 
     @app.get("/repositories")
     def repositories():
-        return db.all("snapshots")
+        return [RepositorySnapshot.model_validate(raw) for raw in db.all("snapshots")]
 
     @app.get("/repositories/{snapshot_id}")
     def repository(snapshot_id: str):

@@ -1,5 +1,7 @@
 # RepoLens Public GitHub Import Implementation Plan
 
+> 用户已于 2026-11-12 确认。此文保留计划原始步骤，实际实现、审查修复与验收边界见 [github-import.md](../../github-import.md)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让用户输入公开 Python GitHub 仓库 HTTPS 地址及可选 ref，获得固定 commit、可验证源码快照，并复用现有索引、任务、报告及证据工作台。

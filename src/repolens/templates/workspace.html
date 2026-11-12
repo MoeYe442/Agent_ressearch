@@ -8,7 +8,7 @@
 </head>
 <body>
   <aside class="navigation" aria-label="主导航">
-    <a class="brand" href="/"><span class="brand-mark">R<span>↗</span></span>RepoLens<span class="version">V1</span></a>
+    <a class="brand" href="/"><span class="brand-mark">R<span>↗</span></span>RepoLens<span class="version">V1.1</span></a>
     <div class="nav-caption">REPOSITORY INTELLIGENCE</div>
     <button id="new-analysis" class="new-button"><span>＋</span> 新建分析</button>
     <div class="nav-section"><span>分析记录</span><span id="history-count">0</span></div>
@@ -24,10 +24,18 @@
       <section id="new-panel" class="card new-panel" aria-labelledby="new-title">
         <div class="section-label">01 / 开始一项调查</div><h2 id="new-title">你想了解哪个仓库？</h2>
         <form id="analysis-form">
+          <label for="repository-source">仓库来源</label><select id="repository-source"><option value="local">本地目录</option><option value="github">公开 GitHub</option></select>
+          <div id="local-source-fields">
           <label for="repo-path">本地仓库路径</label><input id="repo-path" name="path" placeholder="输入允许工作目录内的 Python 仓库绝对路径" required autocomplete="off">
           <p class="field-hint" id="workspace-hint">正在读取工作目录配置…</p>
+          </div>
+          <div id="github-source-fields" hidden>
+            <label for="github-url">GitHub 仓库地址</label><input id="github-url" type="url" placeholder="https://github.com/owner/repository" disabled autocomplete="off">
+            <label for="github-ref">分支、标签或 commit（可选）</label><input id="github-ref" placeholder="留空使用默认分支，导入后固定 commit" maxlength="255" disabled autocomplete="off">
+            <p class="field-hint">仅支持公开仓库。归档中的源码逐文件校验，不运行仓库代码。</p>
+          </div>
           <label for="question">研究问题</label><textarea id="question" name="question" rows="3" placeholder="例如：任务状态保存在哪里？进程重启后能否恢复？" maxlength="10000" required></textarea>
-          <div class="form-footer"><span>本地快照 · Python AST + 全文检索</span><button class="primary" id="submit-analysis" type="submit">开始分析 <span aria-hidden="true">↗</span></button></div>
+          <div class="form-footer"><span>固定快照 · Python AST + 全文检索</span><button class="primary" id="submit-analysis" type="submit">开始分析 <span aria-hidden="true">↗</span></button></div>
           <p id="import-status" class="field-hint" role="status" aria-live="polite"></p>
         </form>
       </section>
@@ -45,7 +53,7 @@
           <aside id="evidence-sidebar" class="card evidence-sidebar" aria-label="证据查看器"><div class="evidence-heading"><span class="section-label">SOURCE EVIDENCE</span><span class="verified-dot">● 快照校验</span></div><div id="evidence-placeholder" class="empty-state"><span class="empty-symbol">⧉</span><h3>让结论有据可查</h3><p>点击报告中的引用，查看对应代码、行号与版本。</p></div><div id="evidence-detail" hidden><h3 id="evidence-location"></h3><div id="evidence-meta" class="evidence-meta"></div><pre class="code-view"><code id="evidence-code"></code></pre><p class="field-hint">哈希与行号验证通过，仅表示来源有效；结论是否得到支持仍需审阅。</p></div></aside>
         </div>
       </section>
-      <footer class="page-footer"><span>RepoLens / Evidence before conclusions</span><span>V1 · 单 Agent · 本地 Python 仓库</span></footer>
+      <footer class="page-footer"><span>RepoLens / Evidence before conclusions</span><span>V1.1 · 单 Agent · 本地 / GitHub Python 仓库</span></footer>
     </div>
   </main>
 </body>

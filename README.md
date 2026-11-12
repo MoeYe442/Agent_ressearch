@@ -1,8 +1,8 @@
-# RepoLens V1
+# RepoLens V1.1
 
 Agent_ressearch：多 Agent 开源项目研读与技术调研平台的 V1 单 Agent 基线。
 
-本地 Python 仓库研读工作台：固定快照 → AST / FTS5 检索 → 单 Agent 工具调用 → 结构化报告 → 可点击源码证据。Python 3.12+，FastAPI + SQLite + Jinja2 / 原生 JavaScript。
+本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / FTS5 检索 → 单 Agent 工具调用 → 结构化报告 → 可点击源码证据。Python 3.12+，FastAPI + SQLite + Jinja2 / 原生 JavaScript。当前包版本 0.2.0。
 
 ## Windows PowerShell 启动
 
@@ -38,16 +38,26 @@ $env:REPOLENS_API_KEY = [System.Net.NetworkCredential]::new('', $credential).Pas
 
 未配置时页面显示 **未配置模型**，仍可导入索引并验证工具/API；提交模型调查得到 `failed/model_not_configured`。仓库源码和问题会发送给所配置模型服务，因此请只登记你愿意交给该服务研读的仓库。
 
+## 公开 GitHub 导入
+
+在“仓库来源”选择“公开 GitHub”，填写 `https://github.com/OWNER/REPO`，可单独指定分支、标签或 commit；留空使用默认分支。只接受仓库根地址，不接受 SSH、Enterprise、tree/blob 页面、查询串、凭据或私有仓库。导入时先解析完整 commit SHA，后续归档、Git tree、快照及追问均绑定该版本；证据可打开 GitHub 固定版本源码链接。
+
+API 示例：`POST /repositories` JSON 为 `{"github_url":"https://github.com/pallets/itsdangerous","ref":"main","idempotency_key":"your-stable-key"}`；旧 `{path: ...}` 请求仍兼容，二者不可同时填写。202 表示已登记，轮询 GET 返回 importing / ready / failed。不同 ref 不能复用同一个幂等键。
+
+匿名访问可能限流；如需提高公开读取额度，在本机设置 `REPOLENS_GITHUB_TOKEN` 后重启。不要在聊天中发 token，也不要给它不必要的私有仓库权限。程序禁用环境代理继承，限制固定 GitHub HTTPS 主机和公网 DNS/连接地址；只给 api.github.com 发送 token。使用 Fake-IP/TUN DNS 返回保留地址（例如 198.18.0.0/15）的环境会收到 `github_network_destination`，需由用户在网络设置中让这两个域名获得真实公网解析；程序不会自动更改网络或放宽保护。
+
+压缩归档最多 100 MiB、成员最多 50,000、声明解压量最多 500 MiB；HTTP 共用 180 秒总预算。逐文件验证 Git blob hash，路径穿越/别名/重复文件拒绝；符号链接、子模块、密钥、依赖和二进制不写入快照。归档省略的文件记为 archive_omitted；export-subst 或 LFS 展开导致与 commit 原始 blob 不符时明确失败。Git tree 截断也明确失败，不能据此声称完整分析。详情与本轮实测见 `docs/github-import.md`。
+
 ## 实现范围与约束
 
-- 本轮支持本地 Python 仓库，单用户、单进程、单 worker；仅绑定回环地址，限制 Host / 来源与客户端地址。不要使用多 worker、代理到公网或多个进程共享同一数据库。
+- 本轮支持本地和公开 GitHub Python 仓库，单用户、单进程、单 worker；仅绑定回环地址，限制 Host / 来源与客户端地址。不要使用多 worker、代理到公网或多个进程共享同一数据库。
 - 不执行被分析项目代码，不提供 shell 工具。外部文本不能更改工具权限；工具参数严格校验并固定 snapshot 范围。
 - 默认每文件最多 1 MiB、纳入文本最多 100 MiB、快照最多 500 MiB。超大单文件与敏感/二进制/依赖/生成文件记录为排除；总量超限明确失败。明显密钥文件筛选不等于通用秘密检测，先检查自己的仓库内容。
 - 每次返回最多执行 8 个工具请求；任务最多 30 次工具、30 次模型、60,000 输入/输出 token 和 15 分钟；限制为上限。输入使用保守 UTF-8 字节上界加协议开销预留，服务返回 usage 时按实际结算；缺失和失败请求使用保守估算，页面用 ≈ 标记，不伪称精确成本。
 - 每个读取窗口最多 160 行。索引包含 Python 符号/导入/装饰器行范围和 Markdown 标题，语法错误保留全文检索。FTS5 不可用则明确报依赖错误。
 - 引用校验快照、路径、行号与 SHA-256，且模型只能引用本任务实际看到的证据。`references_valid` **不表示语义得到证明**；人工检查引用是否支持结论。内部 `succeeded` 仅表示流程产出合规报告。
 - SSE 事件持久化，Last-Event-ID / after 支持补发；刷新通过 URL 的 task_id 恢复页面。未确认提交的快照与幂等键保存在当前标签页 sessionStorage，刷新/重试复用原请求。断开网页不会取消后台任务。取消会在当前模型请求返回或超时后的边界生效，不保证即时中止已发出的网络请求；HTTP 请求有整体 wall-clock 超时，并限制响应正文最多 2 MiB。
-- 重启时 running 任务标记 failed/interrupted，旧 queued 重新排队；无跨进程断点恢复。GitHub 导入、多 Agent、LangGraph、Milvus、Redis、MCP 与网页采集均未实现。
+- 重启时 running 任务标记 failed/interrupted，旧 queued 重新排队；未完成导入标为 interrupted_import，无跨进程断点恢复。私有 GitHub、多 Agent、LangGraph、Milvus、Redis、MCP 与网页采集均未实现。
 - 数据放在 `REPOLENS_DATA`（默认当前目录 `.data`），包含快照、SQLite WAL、事件、工具结果与报告。**先停止服务**，确认数据目录后用 `Remove-Item -LiteralPath 'D:\code\Agent\.data' -Recurse` 清理；会删除所有本地历史。源码不受影响。
 
 ## 测试与评测
