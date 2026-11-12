@@ -1,0 +1,5 @@
+{"id": "entry", "repository": "tests/fixtures/sample_repo", "query": "应用入口 main 在哪里？", "expected_evidence": [{"path": "app.py", "start_line": 14, "end_line": 15}]}
+{"id": "storage", "repository": "tests/fixtures/sample_repo", "query": "StateStore save 状态保存在哪里？", "expected_evidence": [{"path": "storage.py", "start_line": 8, "end_line": 9}]}
+{"id": "recovery", "repository": "tests/fixtures/sample_repo", "query": "load restart recovery", "expected_evidence": [{"path": "storage.py", "start_line": 11, "end_line": 12}]}
+{"id": "docs", "repository": "tests/fixtures/sample_repo", "query": "Future disk persistence resume", "expected_evidence": [{"path": "README.md", "start_line": 5, "end_line": 7}]}
+{"id": "symbol", "repository": "tests/fixtures/sample_repo", "query": "Processor.run", "expected_evidence": [{"path": "app.py", "start_line": 9, "end_line": 11}]}
