@@ -10,7 +10,7 @@ class ModelGateway:
     def __init__(self, model, budget, emit, cancelled, task_id):
         self.model, self.budget = model, budget
         self.emit, self.cancelled, self.task_id = emit, cancelled, task_id
-        self.slots = threading.BoundedSemaphore(2)
+        self.slots = budget.provider_slots
 
     def check(self):
         if self.cancelled():
@@ -73,3 +73,32 @@ class ModelGateway:
                 if attempt:
                     raise ProviderError("invalid_model_json") from None
                 messages.extend([{"role": "assistant", "content": turn.content[:10000]}, {"role": "user", "content": "Invalid structured JSON. Return exactly this schema: " + json.dumps(schema.model_json_schema())}])
+
+    def external(self, call, input_bound, role, subtask_id, *, output_bound=0):
+        """One auxiliary model call, charged to the same atomic investigation ledger."""
+        self.check()
+        while not self.slots.acquire(timeout=.05):
+            self.check()
+        try:
+            self.check()
+            reservation = self.budget.reserve_model(input_bound, output_bound, role, subtask_id, allow_zero_output=True)
+            try:
+                self.event("model_started", role, subtask_id, usage=self.budget.snapshot().model_dump())
+                self.check()
+            except BaseException as exc:
+                self.budget.release_unsent(reservation.id)
+                if isinstance(exc, BudgetExceeded):
+                    self.event("model_aborted", role, subtask_id, error_code=str(exc), usage=self.budget.snapshot().model_dump())
+                raise
+            try:
+                data, measured = call()
+            except BaseException:
+                self.budget.settle_model(reservation.id, None, failed=True)
+                self.event("model_error", role, subtask_id, error_code="auxiliary_request_failed", usage=self.budget.snapshot().model_dump())
+                raise
+            self.budget.settle_model(reservation.id, measured)
+            self.event("model_completed", role, subtask_id, usage=self.budget.snapshot().model_dump())
+            self.check()
+            return data
+        finally:
+            self.slots.release()

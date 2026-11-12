@@ -1,6 +1,8 @@
 import os
+import ipaddress
+from urllib.parse import urlsplit
 from pathlib import Path
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
 class Settings(BaseModel):
@@ -27,6 +29,34 @@ class Settings(BaseModel):
     github_import_timeout: float = Field(default=180, gt=0, le=180)
     github_request_timeout: float = Field(default=30, gt=0, le=30)
     graph_recursion_limit: int = Field(default=32, ge=1, le=64)
+    milvus_url: str = ""
+    milvus_token: SecretStr = SecretStr("")
+    milvus_collection: str = Field(default="repolens_chunks_v1", pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,99}$")
+    embedding_url: str = ""
+    embedding_model: str = ""
+    embedding_key: SecretStr = SecretStr("")
+    embedding_dimensions: int = Field(default=768, ge=1, le=4096)
+    rerank_url: str = ""
+    rerank_model: str = ""
+    rerank_key: SecretStr = SecretStr("")
+
+    @field_validator("milvus_url", "embedding_url", "rerank_url")
+    @classmethod
+    def validate_service_url(cls, value):
+        if not value:
+            return value
+        parsed = urlsplit(value)
+        if parsed.username or parsed.password or parsed.query or parsed.fragment or not parsed.hostname:
+            raise ValueError("invalid_retrieval_service_url")
+        try:
+            loopback = ipaddress.ip_address(parsed.hostname).is_loopback
+        except ValueError:
+            loopback = parsed.hostname.lower() == "localhost"
+        if parsed.scheme != "https" and not (parsed.scheme == "http" and loopback):
+            raise ValueError("retrieval_service_requires_https_or_loopback")
+        if parsed.port is not None and parsed.port < 1:
+            raise ValueError("invalid_retrieval_service_port")
+        return value.rstrip("/")
 
     @classmethod
     def from_env(cls):
@@ -37,4 +67,14 @@ class Settings(BaseModel):
             model_name=os.getenv("REPOLENS_MODEL", ""),
             model_key=SecretStr(os.getenv("REPOLENS_API_KEY", "")),
             github_token=SecretStr(os.getenv("REPOLENS_GITHUB_TOKEN", "")),
+            milvus_url=os.getenv("REPOLENS_MILVUS_URL", ""),
+            milvus_token=SecretStr(os.getenv("REPOLENS_MILVUS_TOKEN", "")),
+            milvus_collection=os.getenv("REPOLENS_MILVUS_COLLECTION", "repolens_chunks_v1"),
+            embedding_url=os.getenv("REPOLENS_EMBEDDING_URL", ""),
+            embedding_model=os.getenv("REPOLENS_EMBEDDING_MODEL", ""),
+            embedding_key=SecretStr(os.getenv("REPOLENS_EMBEDDING_KEY", "")),
+            embedding_dimensions=int(os.getenv("REPOLENS_EMBEDDING_DIMENSIONS", "768")),
+            rerank_url=os.getenv("REPOLENS_RERANK_URL", ""),
+            rerank_model=os.getenv("REPOLENS_RERANK_MODEL", ""),
+            rerank_key=SecretStr(os.getenv("REPOLENS_RERANK_KEY", "")),
         )

@@ -31,6 +31,7 @@ class BudgetManager:
         self.stop_reason = None
         self.subtask_tools = {}
         self.role_usage = {}
+        self.provider_slots = threading.BoundedSemaphore(2)
 
     def check(self):
         if self.stop_reason:
@@ -38,12 +39,12 @@ class BudgetManager:
         if time.monotonic() >= self.deadline:
             raise BudgetExceeded("time_budget_exhausted")
 
-    def reserve_model(self, input_bound, output_limit, role, subtask_id):
+    def reserve_model(self, input_bound, output_limit, role, subtask_id, *, allow_zero_output=False):
         with self.lock:
             self.check()
             remaining = self.settings.max_tokens - self.usage.input_tokens - self.usage.output_tokens
             output = min(output_limit, self.settings.max_output_tokens, remaining - input_bound)
-            if self.usage.model_calls >= self.settings.max_model_calls or input_bound < 0 or output < 1:
+            if self.usage.model_calls >= self.settings.max_model_calls or input_bound < 0 or output < (0 if allow_zero_output else 1):
                 raise BudgetExceeded("budget_exhausted")
             reservation = Reservation(uuid4().hex, input_bound, output, role, subtask_id)
             self.pending[reservation.id] = reservation
