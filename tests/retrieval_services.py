@@ -2,7 +2,16 @@
 import json
 import re
 import httpx
+from tests.scripted_model import ScriptedModel
+from repolens.models import ModelTurn,ModelUsage,ToolCall
 from tests.test_retrieval_http import config
+
+
+class RetrievalModel(ScriptedModel):
+    def complete(self,messages,tools,max_output_tokens):
+        if not any(m['role']=='assistant' for m in messages):
+            return ModelTurn(tool_calls=[ToolCall(id='search',name='search_text',arguments={'query':'Processor.run'})],usage=ModelUsage(input_tokens=100,output_tokens=20))
+        return super().complete(messages,tools,max_output_tokens)
 
 
 class RetrievalServices:

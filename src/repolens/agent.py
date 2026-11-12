@@ -92,7 +92,10 @@ class AgentRunner:
                     except BudgetExceeded as exc:
                         return finish("partial", str(exc))
                     event("tool_started", tool=call.name, arguments=call.arguments)
-                    result = self.registry.invoke(call.name, call.arguments, context)
+                    if context.retrieval_mode == "hybrid":
+                        result = self.registry.invoke(call.name, call.arguments, context, gateway=gateway)
+                    else:
+                        result = self.registry.invoke(call.name, call.arguments, context)
                     if result.status == "ok":
                         observed.update(result.evidence_ids)
                     event("tool_completed", tool=call.name, **result.model_dump())

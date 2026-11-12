@@ -12,6 +12,7 @@ from repolens.github_client import GitHubClient, GitHubSource
 from repolens.github_import import import_github_snapshot
 from repolens.import_storage import cleanup_import
 from repolens.orchestration import CollaborativeRunner
+from repolens.retrieval import RetrievalService
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -21,9 +22,10 @@ def now():
 
 
 class TaskService:
-    def __init__(self, settings, db, model, github_client_factory=None):
+    def __init__(self, settings, db, model, github_client_factory=None, retrieval_factory=None):
         self.settings, self.db, self.model = settings, db, model
-        self.registry = ToolRegistry(db)
+        self.retrieval = (retrieval_factory or RetrievalService)(settings, db)
+        self.registry = ToolRegistry(db, retrieval=self.retrieval)
         self.queue = queue.Queue()
         self.lock = threading.RLock()
         self.stopping = threading.Event()
@@ -34,6 +36,7 @@ class TaskService:
         with self.lock:
             if self.worker is not None:
                 return
+            self.retrieval.interrupt_unfinished()
             # Fresh process startup is explicit failure of interrupted work, never a fake resume.
             for payload in self.db.all("tasks"):
                 task = AnalysisTask.model_validate(payload)
@@ -103,14 +106,16 @@ class TaskService:
             self.queue.put(("import", snapshot_id))
         return snapshot
 
-    def submit(self, snapshot_id, question, idempotency_key=None, *, mode="single"):
+    def submit(self, snapshot_id, question, idempotency_key=None, *, mode="single", retrieval_mode="keyword", rerank=False):
         if mode not in {"single", "collaborative"}:
             raise ValueError("invalid_mode")
+        if retrieval_mode not in {"keyword", "hybrid"} or (rerank and retrieval_mode != "hybrid"):
+            raise ValueError("invalid_retrieval_mode")
         with self.lock:
             if idempotency_key:
                 try:
                     prior = self.db.get("idempotency", idempotency_key)
-                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question or prior.get("mode", "single") != mode:
+                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question or prior.get("mode", "single") != mode or prior.get("retrieval_mode", "keyword") != retrieval_mode or prior.get("rerank", False) != rerank:
                         raise ValueError("idempotency_conflict")
                     return self.get(prior["task_id"])
                 except KeyError:
@@ -119,7 +124,13 @@ class TaskService:
                 raise ValueError("snapshot_not_ready")
             limits = {key: getattr(self.settings, key) for key in ("max_model_calls", "max_tool_calls", "max_tokens", "max_seconds", "max_output_tokens")}
             identifier = ("synthetic:" + type(self.model).__name__) if self.settings.test_environment else self.settings.model_name or None
-            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.3-" + mode)
+            configuration = {}
+            if retrieval_mode == "hybrid":
+                index = self.retrieval.ready(snapshot_id)
+                if rerank and not self.retrieval.rerank_configured:
+                    raise ValueError("rerank_not_configured")
+                configuration = {**index["configuration"], "index_id": index["id"], "rerank_model": self.settings.rerank_model if rerank else None}
+            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.4-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration)
             # Single process submission lock; key, task and first event share one transaction.
             with self.db.connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
@@ -128,7 +139,7 @@ class TaskService:
                 conn.execute("INSERT INTO events VALUES (?,?,?)", (task.id, 1, event.model_dump_json()))
                 if idempotency_key:
                     import json
-                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id, "mode": mode})))
+                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id, "mode": mode, "retrieval_mode": retrieval_mode, "rerank": rerank})))
             self.queue.put(("task", task.id))
             return task
 
@@ -159,6 +170,8 @@ class TaskService:
             try:
                 if kind == "import":
                     self._import(key)
+                elif kind == "retrieval":
+                    self.retrieval.build(key, self.stopping.is_set)
                 else:
                     self._execute(key)
             except Exception:
@@ -241,7 +254,16 @@ class TaskService:
                 self._save(current, event.type, payload, graph=graph)
 
         runner = CollaborativeRunner(self.model, self.registry, self.settings) if task.mode == "collaborative" else AgentRunner(self.model, self.registry, self.settings)
-        result = runner.run(task.question, ToolContext(snapshot_id=task.snapshot_id, task_id=task_id), emit, cancelled)
+        context = ToolContext(snapshot_id=task.snapshot_id, task_id=task_id, retrieval_mode=task.retrieval_mode, rerank=task.rerank, retrieval_index_id=task.retrieval_configuration.get("index_id"))
+        result = None
+        if task.retrieval_mode == "hybrid":
+            try:
+                if self.retrieval.ready(task.snapshot_id)["id"] != context.retrieval_index_id:
+                    raise ValueError("retrieval_configuration_changed")
+            except ValueError as exc:
+                result = AnalysisResult(status="failed", usage=Usage(), mode=task.mode, limitations=[str(exc)])
+        if result is None:
+            result = runner.run(task.question, context, emit, cancelled)
         with self.lock:
             task = self.get(task_id)
             task.status = "cancelled" if task.cancel_requested else result.status

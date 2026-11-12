@@ -49,6 +49,9 @@ class ToolContext(BaseModel):
     snapshot_id: str
     task_id: str
     source_scope: Literal["all", "code", "docs"] = "all"
+    retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
+    rerank: bool = False
+    retrieval_index_id: str | None = None
 
 
 class ToolResult(BaseModel):
@@ -129,6 +132,9 @@ class AnalysisTask(BaseModel):
     budget_limits: dict[str, int | float] = Field(default_factory=dict)
     model_identifier: str | None = None
     prompt_version: str | None = None
+    retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
+    rerank: bool = False
+    retrieval_configuration: dict = Field(default_factory=dict)
 
 
 class PlannedTask(BaseModel):

@@ -5,6 +5,7 @@ from repolens.evidence import EvidenceStore
 from repolens.indexing import RepositoryIndex
 from repolens.models import ToolResult
 from repolens.document_scope import allows_path
+from repolens.model_client import ProviderError
 
 
 class EmptyArgs(BaseModel):
@@ -38,13 +39,14 @@ DESCRIPTIONS = {
 
 
 class ToolRegistry:
-    def __init__(self, db):
+    def __init__(self, db, retrieval=None):
         self.db, self.index, self.evidence = db, RepositoryIndex(db), EvidenceStore(db)
+        self.retrieval = retrieval
 
     def definitions(self):
         return [{"type": "function", "function": {"name": name, "description": DESCRIPTIONS[name], "parameters": schema.model_json_schema()}} for name, schema in ARGUMENTS.items()]
 
-    def invoke(self, name, arguments, context):
+    def invoke(self, name, arguments, context, *, gateway=None):
         start = time.monotonic()
         result = ToolResult(invocation_id=uuid4().hex, status="error")
         try:
@@ -57,7 +59,12 @@ class ToolRegistry:
                 result.data = {"paths": paths[:1000], "total": len(paths), "truncated": len(paths) > 1000}
             elif name in {"search_text", "search_symbols", "get_symbol"}:
                 method = self.index.search_text if name == "search_text" else self.index.search_symbols
-                hits = method(context.snapshot_id, args.query, args.limit, scope=context.source_scope)
+                if name == "search_text" and context.retrieval_mode == "hybrid":
+                    if self.retrieval is None or gateway is None:
+                        raise ValueError("retrieval_gateway_required")
+                    hits = self.retrieval.search(args.query, context, gateway, rerank=context.rerank, limit=args.limit)
+                else:
+                    hits = method(context.snapshot_id, args.query, args.limit, scope=context.source_scope)
                 records = []
                 for hit in hits:
                     item = self.evidence.read_evidence(context.snapshot_id, hit.path, hit.start_line, min(hit.end_line, hit.start_line + 159))
@@ -78,6 +85,8 @@ class ToolRegistry:
             result.status = "ok"
         except ValidationError:
             result.error_code = "invalid_arguments"
+        except ProviderError as exc:
+            result.error_code = exc.code
         except (ValueError, KeyError, OSError) as exc:
             result.error_code = str(exc) if isinstance(exc, ValueError) else "not_found_or_unreadable"
         if result.status != "ok":

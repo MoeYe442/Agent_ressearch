@@ -77,3 +77,14 @@ def test_source_tampering_is_not_hidden_by_vector_store(indexed):
     (indexed[2].root/'README.md').write_text('tampered')
     with pytest.raises(ValueError,match='snapshot_integrity_error'):
         service.search('status',ToolContext(snapshot_id=indexed[2].id,task_id='t',source_scope='docs'),gateway(settings))
+
+
+def test_auxiliary_provider_failure_is_structured_tool_error(indexed):
+    from repolens.tools import ToolRegistry
+    from repolens.model_client import ProviderError
+    settings,fixture,service=prepared(indexed)
+    def broken(*args,**kwargs):raise ProviderError('embedding_http_503')
+    service.embedding.embed=broken
+    registry=ToolRegistry(indexed[1],retrieval=service)
+    result=registry.invoke('search_text',{'query':'status'},ToolContext(snapshot_id=indexed[2].id,task_id='t',retrieval_mode='hybrid'),gateway=gateway(settings))
+    assert result.status=='error' and result.error_code=='embedding_http_503' and not result.evidence_ids

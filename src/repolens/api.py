@@ -16,6 +16,11 @@ from repolens.storage import Database
 from repolens.tasks import TaskService, TERMINAL
 from repolens import __version__
 from repolens.models import RepositorySnapshot, AnalysisTask, AnalysisResult
+from repolens.models import ToolContext
+from repolens.budget import BudgetManager
+from repolens.model_gateway import ModelGateway
+from repolens.model_client import ProviderError
+from repolens.indexing import RepositoryIndex
 
 
 class ImportRequest(BaseModel):
@@ -38,11 +43,33 @@ class TaskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=10000, pattern=r"\S")
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
     mode: Literal["single", "collaborative"] = "single"
+    retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
+    rerank: bool = False
+
+    @model_validator(mode="after")
+    def valid_retrieval(self):
+        if self.rerank and self.retrieval_mode != "hybrid":
+            raise ValueError("rerank_requires_hybrid")
+        return self
 
 
-def create_app(settings, model=None, *, github_client_factory=None):
+class RetrievalIndexRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class SearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=1, max_length=500, pattern=r"\S")
+    retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
+    rerank: bool = False
+    scope: Literal["all", "code", "docs"] = "all"
+    limit: int = Field(default=10, ge=1, le=20)
+
+
+def create_app(settings, model=None, *, github_client_factory=None, retrieval_factory=None):
     db = Database(settings.data_dir / "repolens.sqlite")
-    service = TaskService(settings, db, model if model is not None else configured_model(settings), github_client_factory)
+    service = TaskService(settings, db, model if model is not None else configured_model(settings), github_client_factory, retrieval_factory)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -74,7 +101,11 @@ def create_app(settings, model=None, *, github_client_factory=None):
     @app.exception_handler(ValueError)
     async def invalid(request, exc):
         code = str(exc)
-        return JSONResponse({"error_code": code}, status_code=409 if code in {"idempotency_conflict", "snapshot_not_ready"} else 400)
+        return JSONResponse({"error_code": code}, status_code=409 if code in {"idempotency_conflict", "snapshot_not_ready", "retrieval_not_configured", "retrieval_index_not_ready", "rerank_not_configured", "retrieval_configuration_changed"} else 400)
+
+    @app.exception_handler(ProviderError)
+    async def retrieval_provider_error(request, exc):
+        return JSONResponse({"error_code": exc.code}, status_code=502)
 
     @app.exception_handler(RequestValidationError)
     async def bad_request(request, exc):
@@ -82,7 +113,37 @@ def create_app(settings, model=None, *, github_client_factory=None):
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "model_configured": service.model is not None, "test_environment": settings.test_environment, "workspace_root": str(settings.workspace_root.resolve()), "version": __version__, "github_import": True}
+        return {"status": "ok", "model_configured": service.model is not None, "test_environment": settings.test_environment, "workspace_root": str(settings.workspace_root.resolve()), "version": __version__, "github_import": True, "retrieval_configured": service.retrieval.configured, "rerank_configured": service.retrieval.rerank_configured}
+
+    @app.post("/repositories/{snapshot_id}/retrieval-index", status_code=202)
+    def build_retrieval_index(snapshot_id: str, body: RetrievalIndexRequest):
+        job = service.retrieval.register(snapshot_id, body.idempotency_key)
+        if job["status"] == "queued":
+            service.queue.put(("retrieval", job["id"]))
+        return job
+
+    @app.get("/repositories/{snapshot_id}/retrieval-index")
+    def retrieval_index_status(snapshot_id: str):
+        return service.retrieval.status(snapshot_id)
+
+    @app.post("/repositories/{snapshot_id}/search")
+    def search_repository(snapshot_id: str, body: SearchRequest):
+        snapshot = db.get_snapshot(snapshot_id)
+        if snapshot.status != "ready":
+            raise ValueError("snapshot_not_ready")
+        if body.rerank and body.retrieval_mode != "hybrid":
+            raise ValueError("invalid_retrieval_mode")
+        budget = BudgetManager(settings)
+        gateway = ModelGateway(None, budget, lambda event: None, service.stopping.is_set, "search")
+        context = ToolContext(snapshot_id=snapshot_id, task_id="search", source_scope=body.scope)
+        if body.retrieval_mode == "hybrid":
+            hits = service.retrieval.search(body.query, context, gateway, rerank=body.rerank, limit=body.limit)
+            configuration = service.retrieval.ready(snapshot_id)["configuration"]
+        else:
+            hits = RepositoryIndex(db).search_text(snapshot_id, body.query, body.limit, scope=body.scope)
+            configuration = {"backend": "sqlite-fts5"}
+        rows = [{**hit.model_dump(), "evidence": EvidenceStore(db).read_evidence(snapshot_id, hit.path, hit.start_line, hit.end_line).model_dump()} for hit in hits]
+        return {"snapshot_id": snapshot_id, "manifest_hash": snapshot.manifest_hash, "retrieval_mode": body.retrieval_mode, "rerank": body.rerank, "configuration": configuration, "hits": rows, "usage": budget.snapshot().model_dump(), "role_usage": budget.roles(), "synthetic": settings.test_environment}
 
     @app.post("/repositories", status_code=202)
     def import_repository(body: ImportRequest):
@@ -109,7 +170,7 @@ def create_app(settings, model=None, *, github_client_factory=None):
     def submit(body: TaskRequest):
         # Index is committed before a snapshot becomes eligible for analysis.
         db.get("indexes", body.snapshot_id)
-        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key, mode=body.mode)
+        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key, mode=body.mode, retrieval_mode=body.retrieval_mode, rerank=body.rerank)
 
     @app.get("/tasks")
     def tasks():

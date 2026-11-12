@@ -144,6 +144,8 @@ class RetrievalService:
 
     def search(self,query,context,gateway,*,rerank=False,limit=20):
         job=self.ready(context.snapshot_id)
+        if context.retrieval_index_id is not None and context.retrieval_index_id!=job['id']:
+            raise ValueError('retrieval_configuration_changed')
         if rerank and not self.rerank_configured:
             raise ValueError('rerank_not_configured')
         gateway.check()
