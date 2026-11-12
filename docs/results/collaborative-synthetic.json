@@ -1,0 +1,1304 @@
+{
+  "created_at": "2026-11-12T11:09:39.545642+00:00",
+  "synthetic": true,
+  "quality_improvement": null,
+  "quality_note": "Execution and model review are not quality scores. Independent manual semantic review is pending. Synthetic runs cannot establish model improvement.",
+  "summary": {
+    "single": {
+      "total": 5,
+      "execution_completion_rate": 1.0,
+      "report_production_rate": 1.0,
+      "quality_completion_rate": null,
+      "confirmed_quality_rate": 0.0,
+      "pending_manual_review": 5,
+      "unknown_usage_tasks": 0,
+      "input_tokens": 1250,
+      "output_tokens": 350,
+      "estimated": false
+    },
+    "collaborative": {
+      "total": 5,
+      "execution_completion_rate": 0.8,
+      "report_production_rate": 1.0,
+      "quality_completion_rate": null,
+      "confirmed_quality_rate": 0.0,
+      "pending_manual_review": 5,
+      "unknown_usage_tasks": 0,
+      "input_tokens": 4000,
+      "output_tokens": 1100,
+      "estimated": false
+    }
+  },
+  "results": [
+    {
+      "id": "entry",
+      "question": "应用入口在哪里？",
+      "mode": "single",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 2,
+        "tool_calls": 2,
+        "input_tokens": 250,
+        "output_tokens": 70,
+        "estimated": false,
+        "elapsed_ms": 281.0,
+        "revision": 6
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "de714c54cf8c4ff4a7b84c219814853e",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-single",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "app.main 创建 Processor 并调用 run。",
+            "evidence_ids": [
+              "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "",
+            "review_status": "not_reviewed"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens investigation\n\n- app\\.main 创建 Processor 并调用 run。 [evidence:5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba] [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。",
+        "usage": {
+          "model_calls": 2,
+          "tool_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70,
+          "estimated": false,
+          "elapsed_ms": 281.0,
+          "revision": 6
+        },
+        "evidence_ids": [
+          "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "single",
+        "role_usage": {
+          "single": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "app.py",
+          "start_line": 1,
+          "end_line": 15,
+          "excerpt": "\"\"\"Sample task processor. Never executed by RepoLens.\"\"\"\nfrom storage import StateStore\n\n\nclass Processor:\n    def __init__(self, store: StateStore):\n        self.store = store\n\n    def run(self, task_id):\n        self.store.save(task_id, \"running\")\n        return {\"status\": \"done\"}\n\n\ndef main():\n    return Processor(StateStore()).run(\"demo\")\n",
+          "content_hash": "82d7a7e96569e90b65b3d09987b968bcb213ec0b4899f4c780c086895803812c",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "single": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 437.0
+    },
+    {
+      "id": "entry",
+      "question": "应用入口在哪里？",
+      "mode": "collaborative",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 6,
+        "tool_calls": 2,
+        "input_tokens": 800,
+        "output_tokens": 220,
+        "estimated": false,
+        "elapsed_ms": 765.0,
+        "revision": 14
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "975bc512b7e945f8babe8f997c6348aa",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-collaborative",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "app.main 创建 Processor 并调用 run。",
+            "evidence_ids": [
+              "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "975bc512b7e945f8babe8f997c6348aa:r0:0:claim:0",
+            "review_status": "model_supported"
+          },
+          {
+            "text": "文档写明：app.main 创建 Processor 并调用 run。",
+            "evidence_ids": [
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "975bc512b7e945f8babe8f997c6348aa:r0:1:claim:0",
+            "review_status": "model_supported"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens collaborative investigation\n\n- 模型评审：支持 · app\\.main 创建 Processor 并调用 run。 [evidence:5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba]\n- 模型评审：支持 · 文档写明：app\\.main 创建 Processor 并调用 run。 [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。\n- Model review is not independent semantic proof.",
+        "usage": {
+          "model_calls": 6,
+          "tool_calls": 2,
+          "input_tokens": 800,
+          "output_tokens": 220,
+          "estimated": false,
+          "elapsed_ms": 765.0,
+          "revision": 14
+        },
+        "evidence_ids": [
+          "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "collaborative",
+        "role_usage": {
+          "planner": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          },
+          "code": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "docs": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "reviewer": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "app.py",
+          "start_line": 1,
+          "end_line": 15,
+          "excerpt": "\"\"\"Sample task processor. Never executed by RepoLens.\"\"\"\nfrom storage import StateStore\n\n\nclass Processor:\n    def __init__(self, store: StateStore):\n        self.store = store\n\n    def run(self, task_id):\n        self.store.save(task_id, \"running\")\n        return {\"status\": \"done\"}\n\n\ndef main():\n    return Processor(StateStore()).run(\"demo\")\n",
+          "content_hash": "82d7a7e96569e90b65b3d09987b968bcb213ec0b4899f4c780c086895803812c",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "planner": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        },
+        "code": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "docs": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "reviewer": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 891.0
+    },
+    {
+      "id": "storage",
+      "question": "状态在哪里保存，是否持久化到磁盘？",
+      "mode": "single",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 2,
+        "tool_calls": 2,
+        "input_tokens": 250,
+        "output_tokens": 70,
+        "estimated": false,
+        "elapsed_ms": 297.0,
+        "revision": 6
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "ed72f696be4d46a88636b1d7a68e331c",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-single",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "StateStore.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。",
+            "evidence_ids": [
+              "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "",
+            "review_status": "not_reviewed"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens investigation\n\n- StateStore\\.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。 [evidence:6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6] [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。",
+        "usage": {
+          "model_calls": 2,
+          "tool_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70,
+          "estimated": false,
+          "elapsed_ms": 297.0,
+          "revision": 6
+        },
+        "evidence_ids": [
+          "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "single",
+        "role_usage": {
+          "single": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "storage.py",
+          "start_line": 1,
+          "end_line": 12,
+          "excerpt": "\"\"\"Memory storage: no disk persistence and no restart recovery.\"\"\"\n\n\nclass StateStore:\n    def __init__(self):\n        self.states = {}\n\n    def save(self, task_id, status):\n        self.states[task_id] = status\n\n    def load(self, task_id):\n        return self.states.get(task_id)\n",
+          "content_hash": "86d820abdfb8e877166e1b4956cbaf61ba6c7d986c5214f8ead40c5900fde1f6",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "single": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 406.0
+    },
+    {
+      "id": "storage",
+      "question": "状态在哪里保存，是否持久化到磁盘？",
+      "mode": "collaborative",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 6,
+        "tool_calls": 2,
+        "input_tokens": 800,
+        "output_tokens": 220,
+        "estimated": false,
+        "elapsed_ms": 593.0,
+        "revision": 14
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "4a9b99f0b9db4d1ab91b1e71fa359284",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-collaborative",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "StateStore.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。",
+            "evidence_ids": [
+              "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "4a9b99f0b9db4d1ab91b1e71fa359284:r0:0:claim:0",
+            "review_status": "model_supported"
+          },
+          {
+            "text": "文档写明：StateStore.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。",
+            "evidence_ids": [
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "4a9b99f0b9db4d1ab91b1e71fa359284:r0:1:claim:0",
+            "review_status": "model_supported"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens collaborative investigation\n\n- 模型评审：支持 · StateStore\\.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。 [evidence:6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6]\n- 模型评审：支持 · 文档写明：StateStore\\.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。 [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。\n- Model review is not independent semantic proof.",
+        "usage": {
+          "model_calls": 6,
+          "tool_calls": 2,
+          "input_tokens": 800,
+          "output_tokens": 220,
+          "estimated": false,
+          "elapsed_ms": 593.0,
+          "revision": 14
+        },
+        "evidence_ids": [
+          "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "collaborative",
+        "role_usage": {
+          "planner": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          },
+          "code": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "docs": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "reviewer": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "storage.py",
+          "start_line": 1,
+          "end_line": 12,
+          "excerpt": "\"\"\"Memory storage: no disk persistence and no restart recovery.\"\"\"\n\n\nclass StateStore:\n    def __init__(self):\n        self.states = {}\n\n    def save(self, task_id, status):\n        self.states[task_id] = status\n\n    def load(self, task_id):\n        return self.states.get(task_id)\n",
+          "content_hash": "86d820abdfb8e877166e1b4956cbaf61ba6c7d986c5214f8ead40c5900fde1f6",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "planner": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        },
+        "code": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "docs": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "reviewer": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 781.0
+    },
+    {
+      "id": "recovery",
+      "question": "进程重启后的恢复缺口有哪些？",
+      "mode": "single",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 2,
+        "tool_calls": 2,
+        "input_tokens": 250,
+        "output_tokens": 70,
+        "estimated": false,
+        "elapsed_ms": 265.0,
+        "revision": 6
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "faa0fc0e4e664790ac93903064033f5b",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-single",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "StateStore.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。",
+            "evidence_ids": [
+              "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "",
+            "review_status": "not_reviewed"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens investigation\n\n- StateStore\\.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。 [evidence:6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6] [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。",
+        "usage": {
+          "model_calls": 2,
+          "tool_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70,
+          "estimated": false,
+          "elapsed_ms": 265.0,
+          "revision": 6
+        },
+        "evidence_ids": [
+          "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "single",
+        "role_usage": {
+          "single": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "storage.py",
+          "start_line": 1,
+          "end_line": 12,
+          "excerpt": "\"\"\"Memory storage: no disk persistence and no restart recovery.\"\"\"\n\n\nclass StateStore:\n    def __init__(self):\n        self.states = {}\n\n    def save(self, task_id, status):\n        self.states[task_id] = status\n\n    def load(self, task_id):\n        return self.states.get(task_id)\n",
+          "content_hash": "86d820abdfb8e877166e1b4956cbaf61ba6c7d986c5214f8ead40c5900fde1f6",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "single": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 407.0
+    },
+    {
+      "id": "recovery",
+      "question": "进程重启后的恢复缺口有哪些？",
+      "mode": "collaborative",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 6,
+        "tool_calls": 2,
+        "input_tokens": 800,
+        "output_tokens": 220,
+        "estimated": false,
+        "elapsed_ms": 797.0,
+        "revision": 14
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "e4fbc6e709064e31bc34ee9ff800b099",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-collaborative",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "StateStore.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。",
+            "evidence_ids": [
+              "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "e4fbc6e709064e31bc34ee9ff800b099:r0:0:claim:0",
+            "review_status": "model_supported"
+          },
+          {
+            "text": "文档写明：StateStore.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。",
+            "evidence_ids": [
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "e4fbc6e709064e31bc34ee9ff800b099:r0:1:claim:0",
+            "review_status": "model_supported"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens collaborative investigation\n\n- 模型评审：支持 · StateStore\\.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。 [evidence:6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6]\n- 模型评审：支持 · 文档写明：StateStore\\.save 写入实例 states 字典，load 仅读取内存；未实现磁盘持久化与重启恢复。 [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。\n- Model review is not independent semantic proof.",
+        "usage": {
+          "model_calls": 6,
+          "tool_calls": 2,
+          "input_tokens": 800,
+          "output_tokens": 220,
+          "estimated": false,
+          "elapsed_ms": 797.0,
+          "revision": 14
+        },
+        "evidence_ids": [
+          "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "collaborative",
+        "role_usage": {
+          "planner": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          },
+          "code": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "docs": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "reviewer": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "storage.py",
+          "start_line": 1,
+          "end_line": 12,
+          "excerpt": "\"\"\"Memory storage: no disk persistence and no restart recovery.\"\"\"\n\n\nclass StateStore:\n    def __init__(self):\n        self.states = {}\n\n    def save(self, task_id, status):\n        self.states[task_id] = status\n\n    def load(self, task_id):\n        return self.states.get(task_id)\n",
+          "content_hash": "86d820abdfb8e877166e1b4956cbaf61ba6c7d986c5214f8ead40c5900fde1f6",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "planner": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        },
+        "code": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "docs": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "reviewer": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 968.0
+    },
+    {
+      "id": "conflict",
+      "question": "文档与实现的恢复冲突是什么？",
+      "mode": "single",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 2,
+        "tool_calls": 2,
+        "input_tokens": 250,
+        "output_tokens": 70,
+        "estimated": false,
+        "elapsed_ms": 343.0,
+        "revision": 6
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "202f4454a30745619f64e9ae4ea9cd27",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-single",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "冲突：README 声称自动恢复，代码仅在实例字典中存储，无重启恢复实现。",
+            "evidence_ids": [
+              "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "",
+            "review_status": "not_reviewed"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens investigation\n\n- 冲突：README 声称自动恢复，代码仅在实例字典中存储，无重启恢复实现。 [evidence:6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6] [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。",
+        "usage": {
+          "model_calls": 2,
+          "tool_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70,
+          "estimated": false,
+          "elapsed_ms": 343.0,
+          "revision": 6
+        },
+        "evidence_ids": [
+          "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "single",
+        "role_usage": {
+          "single": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "storage.py",
+          "start_line": 1,
+          "end_line": 12,
+          "excerpt": "\"\"\"Memory storage: no disk persistence and no restart recovery.\"\"\"\n\n\nclass StateStore:\n    def __init__(self):\n        self.states = {}\n\n    def save(self, task_id, status):\n        self.states[task_id] = status\n\n    def load(self, task_id):\n        return self.states.get(task_id)\n",
+          "content_hash": "86d820abdfb8e877166e1b4956cbaf61ba6c7d986c5214f8ead40c5900fde1f6",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "single": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 516.0
+    },
+    {
+      "id": "conflict",
+      "question": "文档与实现的恢复冲突是什么？",
+      "mode": "collaborative",
+      "status": "partial",
+      "usage": {
+        "model_calls": 6,
+        "tool_calls": 2,
+        "input_tokens": 800,
+        "output_tokens": 220,
+        "estimated": false,
+        "elapsed_ms": 750.0,
+        "revision": 14
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "c5fb24c8c4fb4d5c9694397aa56474ee",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-collaborative",
+      "report": {
+        "status": "partial",
+        "claims": [
+          {
+            "text": "冲突：README 声称自动恢复，代码仅在实例字典中存储，无重启恢复实现。",
+            "evidence_ids": [
+              "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "c5fb24c8c4fb4d5c9694397aa56474ee:r0:0:claim:0",
+            "review_status": "model_contradicted"
+          },
+          {
+            "text": "文档写明：冲突：README 声称自动恢复，代码仅在实例字典中存储，无重启恢复实现。",
+            "evidence_ids": [
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "c5fb24c8c4fb4d5c9694397aa56474ee:r0:1:claim:0",
+            "review_status": "model_contradicted"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens collaborative investigation\n\n- 模型评审：冲突 · 冲突：README 声称自动恢复，代码仅在实例字典中存储，无重启恢复实现。 [evidence:6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6]\n- 模型评审：冲突 · 文档写明：冲突：README 声称自动恢复，代码仅在实例字典中存储，无重启恢复实现。 [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。\n- Model review is not independent semantic proof.",
+        "usage": {
+          "model_calls": 6,
+          "tool_calls": 2,
+          "input_tokens": 800,
+          "output_tokens": 220,
+          "estimated": false,
+          "elapsed_ms": 750.0,
+          "revision": 14
+        },
+        "evidence_ids": [
+          "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "collaborative",
+        "role_usage": {
+          "planner": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          },
+          "code": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "docs": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "reviewer": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "6b263f64c6494c1810d4b1b2760f8d12a3b5a2ee10bd165d56360ff758df4dd6",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "storage.py",
+          "start_line": 1,
+          "end_line": 12,
+          "excerpt": "\"\"\"Memory storage: no disk persistence and no restart recovery.\"\"\"\n\n\nclass StateStore:\n    def __init__(self):\n        self.states = {}\n\n    def save(self, task_id, status):\n        self.states[task_id] = status\n\n    def load(self, task_id):\n        return self.states.get(task_id)\n",
+          "content_hash": "86d820abdfb8e877166e1b4956cbaf61ba6c7d986c5214f8ead40c5900fde1f6",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "planner": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        },
+        "code": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "docs": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "reviewer": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 1000.0
+    },
+    {
+      "id": "absent",
+      "question": "是否有不存在的多 Agent 调度功能？",
+      "mode": "single",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 2,
+        "tool_calls": 2,
+        "input_tokens": 250,
+        "output_tokens": 70,
+        "estimated": false,
+        "elapsed_ms": 344.0,
+        "revision": 6
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "bdcf3b05a28c4ae78d2ac9666660d842",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-single",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "在限定文件中未发现多 Agent 调度；静态检索不能穷尽证明不存在。",
+            "evidence_ids": [
+              "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "",
+            "review_status": "not_reviewed"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens investigation\n\n- 在限定文件中未发现多 Agent 调度；静态检索不能穷尽证明不存在。 [evidence:5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba] [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。",
+        "usage": {
+          "model_calls": 2,
+          "tool_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70,
+          "estimated": false,
+          "elapsed_ms": 344.0,
+          "revision": 6
+        },
+        "evidence_ids": [
+          "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "single",
+        "role_usage": {
+          "single": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "app.py",
+          "start_line": 1,
+          "end_line": 15,
+          "excerpt": "\"\"\"Sample task processor. Never executed by RepoLens.\"\"\"\nfrom storage import StateStore\n\n\nclass Processor:\n    def __init__(self, store: StateStore):\n        self.store = store\n\n    def run(self, task_id):\n        self.store.save(task_id, \"running\")\n        return {\"status\": \"done\"}\n\n\ndef main():\n    return Processor(StateStore()).run(\"demo\")\n",
+          "content_hash": "82d7a7e96569e90b65b3d09987b968bcb213ec0b4899f4c780c086895803812c",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "single": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 531.0
+    },
+    {
+      "id": "absent",
+      "question": "是否有不存在的多 Agent 调度功能？",
+      "mode": "collaborative",
+      "status": "succeeded",
+      "usage": {
+        "model_calls": 6,
+        "tool_calls": 2,
+        "input_tokens": 800,
+        "output_tokens": 220,
+        "estimated": false,
+        "elapsed_ms": 828.0,
+        "revision": 14
+      },
+      "quality_pass": null,
+      "synthetic": true,
+      "has_report": true,
+      "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+      "manifest_hash": "a46fad8d25c7d8c31a00291c3765f5904fd28a9cdbd6c196998ff9ca49748990",
+      "task_id": "07766ada89c84996985f51bf4a9841f8",
+      "error_code": null,
+      "model_identifier": "synthetic:ComparisonModel",
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "prompt_version": "repolens-0.3-collaborative",
+      "report": {
+        "status": "succeeded",
+        "claims": [
+          {
+            "text": "在限定文件中未发现多 Agent 调度；静态检索不能穷尽证明不存在。",
+            "evidence_ids": [
+              "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "07766ada89c84996985f51bf4a9841f8:r0:0:claim:0",
+            "review_status": "model_supported"
+          },
+          {
+            "text": "文档写明：在限定文件中未发现多 Agent 调度；静态检索不能穷尽证明不存在。",
+            "evidence_ids": [
+              "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+            ],
+            "verification_status": "references_valid",
+            "claim_id": "07766ada89c84996985f51bf4a9841f8:r0:1:claim:0",
+            "review_status": "model_supported"
+          }
+        ],
+        "limitations": [
+          "Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。"
+        ],
+        "markdown": "# RepoLens collaborative investigation\n\n- 模型评审：支持 · 在限定文件中未发现多 Agent 调度；静态检索不能穷尽证明不存在。 [evidence:5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba]\n- 模型评审：支持 · 文档写明：在限定文件中未发现多 Agent 调度；静态检索不能穷尽证明不存在。 [evidence:e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90]\n\n## Limitations\n- Synthetic fixture only；静态范围有限，恢复与不存在性须人工复查。\n- Model review is not independent semantic proof.",
+        "usage": {
+          "model_calls": 6,
+          "tool_calls": 2,
+          "input_tokens": 800,
+          "output_tokens": 220,
+          "estimated": false,
+          "elapsed_ms": 828.0,
+          "revision": 14
+        },
+        "evidence_ids": [
+          "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90"
+        ],
+        "mode": "collaborative",
+        "role_usage": {
+          "planner": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          },
+          "code": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "docs": {
+            "model_calls": 2,
+            "input_tokens": 250,
+            "output_tokens": 70
+          },
+          "reviewer": {
+            "model_calls": 1,
+            "input_tokens": 150,
+            "output_tokens": 40
+          }
+        }
+      },
+      "evidence": [
+        {
+          "id": "5fe1c4b7d60664a90565a1548bbefde729448d7a4bd3b07236cd0ef1e133d5ba",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "app.py",
+          "start_line": 1,
+          "end_line": 15,
+          "excerpt": "\"\"\"Sample task processor. Never executed by RepoLens.\"\"\"\nfrom storage import StateStore\n\n\nclass Processor:\n    def __init__(self, store: StateStore):\n        self.store = store\n\n    def run(self, task_id):\n        self.store.save(task_id, \"running\")\n        return {\"status\": \"done\"}\n\n\ndef main():\n    return Processor(StateStore()).run(\"demo\")\n",
+          "content_hash": "82d7a7e96569e90b65b3d09987b968bcb213ec0b4899f4c780c086895803812c",
+          "commit_sha": null,
+          "source_type": "repository_file"
+        },
+        {
+          "id": "e47952a7cd00fc79d7124f621a2acd2604169f665b21ecbbf2b235c8e0d47e90",
+          "snapshot_id": "84e3322c82934832aa76e8fea315e153",
+          "path": "README.md",
+          "start_line": 1,
+          "end_line": 7,
+          "excerpt": "# Sample processor\r\n\r\nEntry point: app.main.\r\n\r\n## Deliberately stale documentation\r\n\r\nStateStore persists to disk and automatically resumes tasks after restart.\r\n",
+          "content_hash": "6473f28b41ec2975cea7421d4595dba6f6f38f8ffc183c0c13bbba2747f79e79",
+          "commit_sha": null,
+          "source_type": "repository_document"
+        }
+      ],
+      "role_usage": {
+        "planner": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        },
+        "code": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "docs": {
+          "model_calls": 2,
+          "input_tokens": 250,
+          "output_tokens": 70
+        },
+        "reviewer": {
+          "model_calls": 1,
+          "input_tokens": 150,
+          "output_tokens": 40
+        }
+      },
+      "structure_pass": true,
+      "missing_symbols": [],
+      "missing_sources": [],
+      "missing_limitation_markers": [],
+      "review_rule": "核查真实引用是否支持回答；陈旧 README 故意与内存实现冲突，模型评审不代替人工。",
+      "elapsed_ms": 1016.0
+    }
+  ]
+}

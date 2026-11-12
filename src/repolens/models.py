@@ -126,6 +126,9 @@ class AnalysisTask(BaseModel):
     created_at: str
     updated_at: str
     mode: Literal["single", "collaborative"] = "single"
+    budget_limits: dict[str, int | float] = Field(default_factory=dict)
+    model_identifier: str | None = None
+    prompt_version: str | None = None
 
 
 class PlannedTask(BaseModel):

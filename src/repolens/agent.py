@@ -62,7 +62,7 @@ class AgentRunner:
                 parts.append(f"- {markdown_text(claim.text)} {refs}")
             if limitations:
                 parts.extend(["", "## Limitations", *[f"- {markdown_text(x)}" for x in limitations]])
-            return AnalysisResult(status=final_status, claims=claims, limitations=limitations, markdown="\n".join(parts), usage=usage, evidence_ids=sorted(observed))
+            return AnalysisResult(status=final_status, claims=claims, limitations=limitations, markdown="\n".join(parts), usage=usage, evidence_ids=sorted(observed), role_usage=budget.roles())
 
         if self.model is None:
             return finish("failed", "model_not_configured")

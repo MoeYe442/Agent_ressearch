@@ -1,4 +1,4 @@
-# RepoLens V1 演示
+# RepoLens V2.0 演示
 
 1. 按 README 设置工作目录并启动；未配置模型时先展示页面中的明确提示，不展示假调查。
 2. 输入 `D:\code\Agent\tests\fixtures\sample_repo`，提问“状态保存在哪里，进程重启后能否恢复？”。有真实配置才把本轮调查称为真实模型结果。
@@ -10,4 +10,7 @@
 8. 若要演示进程退出：在单独测试数据目录运行，任务 running 时停止进程，重启后显示 interrupted。V1 不演示断点恢复。
 9. 展示 `eval/tasks.jsonl` 的五题、真实记录（如已配置）或明确标为 synthetic 的集成记录，说明结构检查与人工质量评测的区别。
 
-不要声称 V1 实现 GitHub 导入、多 Agent、向量检索、自动网页采集或跨进程恢复；不要把测试模型截图当作真实调研成果。
+10. 选择协作模式，查看代码/文档分工、最多两轮补查及模型评审。用 `tests/fixtures/collaborative_repo` 对照故意陈旧的 README 和内存存储代码；两个来源都可点击。模型判断不等于事实证明。
+11. 展示 `eval/collaborative_tasks.jsonl` 与 `docs/results/collaborative-synthetic.json`，说明同预算和固定快照；全部质量值等待人工，不声称协作效果提升。
+
+本版已实现公开 GitHub 导入与受限协作调查，仍未实现向量检索、外部文档网页采集或跨进程图恢复。不要把测试模型截图当作真实调研成果。

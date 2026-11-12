@@ -79,3 +79,22 @@ def test_legacy_task_list_and_report_load(indexed):
     with TestClient(create_app(settings,ScriptedModel()),client=('127.0.0.1',1)) as client:
         wait(client,task.id)
         assert client.get('/tasks').json()[0]['mode']=='single'
+        report=db.get('reports',task.id)
+        for key in ['mode','role_usage','evidence_ids']:report.pop(key,None)
+        for claim in report['claims']:
+            claim.pop('claim_id',None);claim.pop('review_status',None)
+        db.put('reports',task.id,report)
+        restored=client.get('/tasks/'+task.id+'/report').json()
+        assert restored['mode']=='single' and restored['claims'][0]['review_status']=='not_reviewed'
+
+
+def test_failure_and_budget_events_are_not_succeeded(indexed):
+    settings=indexed[0].model_copy(update={'max_model_calls':1})
+    with TestClient(create_app(settings,CollaborativeModel()),client=('127.0.0.1',1)) as client:
+        task=client.post('/tasks',json={'snapshot_id':indexed[2].id,'question':'Question','mode':'collaborative'}).json()
+        done=wait(client,task['id'])
+        assert done['status']=='partial' and done['usage']['model_calls']==1
+        report=client.get('/tasks/'+task['id']+'/report').json()
+        graph=client.get('/tasks/'+task['id']+'/graph').json()
+        assert graph['status']==report['status']==done['status']
+        assert 'budget_exhausted' in report['limitations']

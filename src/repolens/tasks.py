@@ -117,7 +117,9 @@ class TaskService:
                     pass
             if self.db.get_snapshot(snapshot_id).status != "ready":
                 raise ValueError("snapshot_not_ready")
-            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now())
+            limits = {key: getattr(self.settings, key) for key in ("max_model_calls", "max_tool_calls", "max_tokens", "max_seconds", "max_output_tokens")}
+            identifier = ("synthetic:" + type(self.model).__name__) if self.settings.test_environment else self.settings.model_name or None
+            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.3-" + mode)
             # Single process submission lock; key, task and first event share one transaction.
             with self.db.connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
