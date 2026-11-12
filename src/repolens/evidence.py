@@ -3,6 +3,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 from repolens.models import Evidence
 from repolens.repositories import decode_text, is_link
 from repolens.secure_io import secure_read, physical_lines
+from repolens.document_scope import source_type
 
 
 class EvidenceStore:
@@ -40,12 +41,14 @@ class EvidenceStore:
         excerpt = "".join(lines[start_line - 1:end_line])
         digest = hashlib.sha256(excerpt.encode()).hexdigest()
         evidence_id = hashlib.sha256(f"{snapshot_id}:{path}:{start_line}:{end_line}:{digest}".encode()).hexdigest()
-        evidence = Evidence(id=evidence_id, snapshot_id=snapshot_id, path=path, start_line=start_line, end_line=end_line, excerpt=excerpt, content_hash=digest, commit_sha=self.db.get_snapshot(snapshot_id).commit_sha)
+        evidence = Evidence(id=evidence_id, snapshot_id=snapshot_id, path=path, start_line=start_line, end_line=end_line, excerpt=excerpt, content_hash=digest, commit_sha=self.db.get_snapshot(snapshot_id).commit_sha, source_type=source_type(path))
         self.db.put("evidence", evidence_id, evidence)
         return evidence
 
     def get(self, evidence_id, snapshot_id=None):
-        item = Evidence.model_validate(self.db.get("evidence", evidence_id))
+        raw = self.db.get("evidence", evidence_id)
+        raw.setdefault("source_type", source_type(raw["path"]))
+        item = Evidence.model_validate(raw)
         if snapshot_id is not None and snapshot_id != item.snapshot_id:
             raise ValueError("snapshot_mismatch")
         fresh = self.read_evidence(item.snapshot_id, item.path, item.start_line, item.end_line)

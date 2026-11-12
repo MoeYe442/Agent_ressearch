@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from repolens.evidence import EvidenceStore
 from repolens.indexing import RepositoryIndex
 from repolens.models import ToolResult
+from repolens.document_scope import allows_path
 
 
 class EmptyArgs(BaseModel):
@@ -52,11 +53,11 @@ class ToolRegistry:
             args = ARGUMENTS[name].model_validate(arguments)
             self.db.get_snapshot(context.snapshot_id)
             if name == "list_tree":
-                paths = sorted(self.db.get_snapshot(context.snapshot_id).manifest)
+                paths = sorted(path for path in self.db.get_snapshot(context.snapshot_id).manifest if allows_path(path, context.source_scope))
                 result.data = {"paths": paths[:1000], "total": len(paths), "truncated": len(paths) > 1000}
             elif name in {"search_text", "search_symbols", "get_symbol"}:
                 method = self.index.search_text if name == "search_text" else self.index.search_symbols
-                hits = method(context.snapshot_id, args.query, args.limit)
+                hits = method(context.snapshot_id, args.query, args.limit, scope=context.source_scope)
                 records = []
                 for hit in hits:
                     item = self.evidence.read_evidence(context.snapshot_id, hit.path, hit.start_line, min(hit.end_line, hit.start_line + 159))
@@ -65,9 +66,13 @@ class ToolRegistry:
                 result.data = records
             else:
                 if name == "read_file":
+                    if not allows_path(args.path, context.source_scope):
+                        raise ValueError("tool_scope_denied")
                     item = self.evidence.read_evidence(context.snapshot_id, **args.model_dump())
                 else:
                     item = self.evidence.get(args.evidence_id, context.snapshot_id)
+                    if not allows_path(item.path, context.source_scope):
+                        raise ValueError("tool_scope_denied")
                 result.evidence_ids = [item.id]
                 result.data = item.model_dump()
             result.status = "ok"

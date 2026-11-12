@@ -4,6 +4,7 @@ import sqlite3
 from repolens.evidence import EvidenceStore
 from repolens.models import SearchHit, IndexSummary
 from repolens.secure_io import physical_lines
+from repolens.document_scope import scope_sql
 
 
 class RepositoryIndex:
@@ -16,19 +17,19 @@ class RepositoryIndex:
             except sqlite3.OperationalError as exc:
                 raise RuntimeError("SQLite FTS5 is required; install a Python build with FTS5 support") from exc
 
-    def search_symbols(self, snapshot_id, query, limit=10):
+    def search_symbols(self, snapshot_id, query, limit=10, *, scope="all"):
         escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         with self.db.connect() as conn:
-            rows = conn.execute("SELECT path,symbol,start_line,end_line FROM symbols WHERE snapshot_id=? AND symbol LIKE ? ESCAPE '\\' ORDER BY (symbol=?) DESC,path,start_line LIMIT ?", (snapshot_id, "%" + escaped + "%", query, min(max(limit, 1), 20))).fetchall()
+            rows = conn.execute("SELECT path,symbol,start_line,end_line FROM symbols WHERE snapshot_id=? AND " + scope_sql(scope) + " AND symbol LIKE ? ESCAPE '\\' ORDER BY (symbol=?) DESC,path,start_line LIMIT ?", (snapshot_id, "%" + escaped + "%", query, min(max(limit, 1), 20))).fetchall()
         return [SearchHit(**dict(row)) for row in rows]
 
-    def search_text(self, snapshot_id, query, limit=10):
+    def search_text(self, snapshot_id, query, limit=10, *, scope="all"):
         terms = re.findall(r"\w+", query, flags=re.UNICODE)
         if not terms:
             return []
         match = " OR ".join('"' + term.replace('"', '""') + '"' for term in terms[:20])
         with self.db.connect() as conn:
-            rows = conn.execute("SELECT path,start_line,end_line,bm25(text_chunks) AS rank FROM text_chunks WHERE text_chunks MATCH ? AND snapshot_id=? ORDER BY rank,path,start_line LIMIT ?", (match, snapshot_id, min(max(limit, 1), 20))).fetchall()
+            rows = conn.execute("SELECT path,start_line,end_line,bm25(text_chunks) AS rank FROM text_chunks WHERE text_chunks MATCH ? AND snapshot_id=? AND " + scope_sql(scope) + " ORDER BY rank,path,start_line LIMIT ?", (match, snapshot_id, min(max(limit, 1), 20))).fetchall()
         return [SearchHit(path=row["path"], start_line=int(row["start_line"]), end_line=int(row["end_line"]), score=-row["rank"]) for row in rows]
 
 

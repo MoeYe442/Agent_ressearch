@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 from pydantic import BaseModel, Field
 
 
@@ -41,11 +42,13 @@ class Evidence(BaseModel):
     excerpt: str
     content_hash: str
     commit_sha: str | None = None
+    source_type: str = "repository_file"
 
 
 class ToolContext(BaseModel):
     snapshot_id: str
     task_id: str
+    source_scope: Literal["all", "code", "docs"] = "all"
 
 
 class ToolResult(BaseModel):
