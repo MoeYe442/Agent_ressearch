@@ -116,6 +116,8 @@ class AgentRunner:
                     status = "partial"
                     continue
                 item.verification_status = "references_valid"
+                item.claim_id = ""
+                item.review_status = "not_reviewed"
                 claims.append(item)
             if not claims:
                 status = "partial"

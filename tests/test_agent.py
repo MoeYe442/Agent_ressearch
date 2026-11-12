@@ -118,3 +118,16 @@ def test_export_cannot_forge_evidence_markers(indexed):
     assert result.status == "succeeded"
     assert "[evidence:fake]" not in result.markdown
     assert "[evidence:fake2]" not in result.markdown
+
+
+def test_single_cannot_forge_review_metadata(indexed):
+    class FakeReview(ScriptedModel):
+        def complete(self,*args,**kwargs):
+            turn=super().complete(*args,**kwargs)
+            if turn.content:
+                data=json.loads(turn.content)
+                data['claims'][0].update(claim_id='foreign',review_status='model_supported')
+                turn.content=json.dumps(data)
+            return turn
+    result,_=run(indexed,FakeReview())
+    assert result.claims[0].review_status=='not_reviewed' and result.claims[0].claim_id==''

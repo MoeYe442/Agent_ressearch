@@ -26,6 +26,7 @@ class Settings(BaseModel):
     github_max_unpacked_bytes: int = Field(default=500 * 1024 * 1024, gt=0)
     github_import_timeout: float = Field(default=180, gt=0, le=180)
     github_request_timeout: float = Field(default=30, gt=0, le=30)
+    graph_recursion_limit: int = Field(default=32, ge=1, le=64)
 
     @classmethod
     def from_env(cls):

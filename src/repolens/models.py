@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class RepositorySnapshot(BaseModel):
@@ -92,6 +92,8 @@ class Claim(BaseModel):
     text: str = Field(min_length=1, max_length=10000)
     evidence_ids: list[str] = Field(default_factory=list, max_length=30)
     verification_status: str = "unverified"
+    claim_id: str = ""
+    review_status: str = "not_reviewed"
 
 
 class TaskEvent(BaseModel):
@@ -109,6 +111,8 @@ class AnalysisResult(BaseModel):
     markdown: str = ""
     usage: Usage
     evidence_ids: list[str] = Field(default_factory=list)
+    mode: Literal["single", "collaborative"] = "single"
+    role_usage: dict[str, dict] = Field(default_factory=dict)
 
 
 class AnalysisTask(BaseModel):
@@ -121,3 +125,37 @@ class AnalysisTask(BaseModel):
     usage: Usage | None = None
     created_at: str
     updated_at: str
+    mode: Literal["single", "collaborative"] = "single"
+
+
+class PlannedTask(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,40}$")
+    role: Literal["code", "docs"]
+    question: str = Field(min_length=1, max_length=2000)
+    depends_on: list[str] = Field(default_factory=list, max_length=4)
+
+
+class ResearchPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    tasks: list[PlannedTask] = Field(min_length=1, max_length=4)
+
+
+class ReviewItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    claim_id: str
+    verdict: Literal["supported", "contradicted", "insufficient"]
+    evidence_ids: list[str] = Field(default_factory=list, max_length=30)
+    reason: str = Field(default="", max_length=1000)
+
+
+class FollowupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    role: Literal["code", "docs"]
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class ReviewDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    items: list[ReviewItem] = Field(default_factory=list, max_length=80)
+    followups: list[FollowupRequest] = Field(default_factory=list, max_length=2)
