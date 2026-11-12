@@ -4,6 +4,7 @@ import asyncio
 import ssl
 import certifi
 import time
+import copy
 from typing import Protocol
 import httpx
 from pydantic import ValidationError
@@ -25,6 +26,11 @@ class HTTPChatModel:
         self.settings = settings
         self.deadline = None
         self.ssl_context = ssl.create_default_context(cafile=certifi.where())
+
+    def with_deadline(self, deadline):
+        model = copy.copy(self)
+        model.deadline = deadline
+        return model
 
     def complete(self, messages, tools, max_output_tokens):
         return asyncio.run(self._complete(messages, tools, max_output_tokens))

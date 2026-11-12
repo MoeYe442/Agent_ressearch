@@ -82,6 +82,7 @@ class Usage(BaseModel):
     output_tokens: int = 0
     estimated: bool = False
     elapsed_ms: float = 0
+    revision: int = 0
 
 
 class Claim(BaseModel):
@@ -104,6 +105,7 @@ class AnalysisResult(BaseModel):
     limitations: list[str] = Field(default_factory=list)
     markdown: str = ""
     usage: Usage
+    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class AnalysisTask(BaseModel):
