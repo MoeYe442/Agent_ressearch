@@ -38,3 +38,7 @@ V2.1 最终独立审查修复后：**292 passed，273.96s**，含36项浏览器�
 最终独立审查修复后：**339 passed，371.57s**，含42项浏览器测试；compileall和pip check通过。三项重要问题（msgpack构造器限制、hybrid失效代与累计用量、完整执行指纹）均RED→GREEN。四种真实进程退出和四种无新调用拒绝场景均通过；评测明确synthetic，质量为null，不代表真实费用或答案质量。源码包附最终全量输出、启动检查、桌面/移动端截图及SHA256清单。
 
 正式0.5.0服务已重启，未配置模型时零调用明确失败、恢复拒绝409，默认single/keyword页面无JavaScript异常。保留一项轻微页面取消入口问题，API取消可用；本轮仍为SQLite单worker调查恢复，未实现生产分布式工程化或导入/建库恢复。详见 docs/durable-recovery.md、docs/durable-execution.md、docs/results/recovery-synthetic.json。
+
+## V3.1 独立 worker 工程化（2026-11-15）
+
+版本0.6.0提供PostgreSQL/官方PG检查点、独立API/worker、数据库持久派发与Redis唤醒、Compose及只读源库历史迁移。一次静态全分支审查的三项重要问题已修正。遵守用户AGENT.md，本轮**只编译，不运行测试**：Python字节码/Jinja模板编译、JavaScript语法、pip check与Compose静态配置检查；没有Docker build/up、数据库迁移或模型调用，没有重启原服务，不复用上一版本339项通过结论。部署运行验收仍待进行，见 docs/infrastructure.md 和 docs/results/infrastructure-compile.json。

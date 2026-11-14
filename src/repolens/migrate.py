@@ -33,7 +33,9 @@ def migrate(source_data,settings):
         target=open_database(settings);WorkerLease(target);RepositoryIndex(target)
         setup_postgres(target)
         with target.atomic() as conn:
-            for table in ['entities','events','execution_runs','execution_calls','execution_cache']:
+            business_tables=['entities','events','execution_runs','execution_calls','execution_cache','symbols','text_chunks','checkpoints','checkpoint_blobs','checkpoint_writes','retrieval_chunks','dispatch_jobs']
+            for table in business_tables:
+                if not conn.execute('SELECT to_regclass(?) AS name',(table,)).fetchone()['name']:continue
                 if conn.execute(f'SELECT COUNT(*) AS n FROM {table}').fetchone()['n']:raise ValueError('empty_postgres_target_required')
             lease=conn.execute('SELECT expires FROM worker_lease WHERE id=1').fetchone()
             if lease and lease['expires']>time.time():raise ValueError('stop_target_worker_before_migration')

@@ -83,6 +83,12 @@ class WorkerLease:
                 except sqlite3.OperationalError as exc:
                     if 'locked' in str(exc).lower():continue
                     self.lost.set();self.on_lost();return
+                except Exception as exc:
+                    # PostgreSQL advisory-lock contention is not a fencing loss.
+                    # The next transaction must still verify owner/epoch; an
+                    # actual replacement remains terminal for the old worker.
+                    if getattr(exc,'sqlstate',None)=='55P03':continue
+                    self.lost.set();self.on_lost();return
                 except BaseException:self.lost.set();self.on_lost();return
         self.thread=threading.Thread(target=beat,name='repolens-lease',daemon=True);self.thread.start()
 

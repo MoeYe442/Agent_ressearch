@@ -21,11 +21,11 @@
 
 ## Tasks
 
-- [ ] 1. PostgreSQL 存储与全文索引，复用事务/领域接口。
-- [ ] 2. 官方 PostgresSaver + 同事务 fencing；配置与运行角色。
-- [ ] 3. 持久派发表/Redis 唤醒、API-worker 分离、并发请求原子性。
-- [ ] 4. Docker/Compose、历史数据迁移 CLI 与操作说明。
-- [ ] 5. 编译、依赖检查、一次只读全分支审查、修复、提交。
+- [x] 1. PostgreSQL 存储与全文索引，复用事务/领域接口。
+- [x] 2. 官方 PostgresSaver + 同事务 fencing；配置与运行角色。
+- [x] 3. 持久派发表/Redis 唤醒、API-worker 分离、并发请求原子性。
+- [x] 4. Docker/Compose、历史数据迁移 CLI 与操作说明。
+- [x] 5. 编译、依赖检查、一次只读全分支审查、修复、提交。
 
 ## Review Focus
 

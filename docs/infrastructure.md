@@ -53,7 +53,7 @@ Compose桥接子网默认`172.29.37.0/24`，仅该显式网段及环回地址可
 
 数据库`dispatch_jobs`与任务/导入/建库登记同事务保存。Redis只携带作业类型和ID，提交成功后发送最多保留1000条的可丢弃通知。worker每次先从数据库事务领取pending记录，空闲时短暂等待Redis；Redis不可用时回退轮询。重复/丢失通知不决定是否执行，也不会存储报告或预算。
 
-仍保持**一个活跃worker**：全局租约、心跳及递增epoch决定执行权。第二个worker等待旧租约到期；没有横向分摊任务的承诺。PostgreSQL短事务使用统一advisory事务锁，API读改写、worker事件、预算、派发表和检查点写入在同一锁域内检查权限，避免取消/恢复与状态覆盖竞争。SQLite使用重入事务，保留既有查询和FTS5；PostgreSQL全文查询用simple tsvector/GIN与ts_rank_cd，排名不等同SQLite BM25。
+仍保持**一个活跃worker**：全局租约、心跳及递增epoch决定执行权。第二个worker等待旧租约到期；没有横向分摊任务的承诺。PostgreSQL事务使用统一advisory事务锁，API读改写、worker事件、预算、派发表和检查点写入在同一锁域内检查权限，避免取消/恢复与状态覆盖竞争。心跳遇到SQLite忙或PG锁等待超时会重试，owner/epoch发生替换仍立即失去权限。全局锁偏向正确性，长时间建库事务可能阻塞API查询；后续优化需保持发布原子性。SQLite使用重入事务，保留既有查询和FTS5；PostgreSQL全文查询用simple tsvector/GIN与ts_rank_cd，排名不等同SQLite BM25。
 
 worker退出时排空在途调用并保留partial；超出180秒容器停止宽限仍可能被强制结束，未保存响应保留未知预留。重新启动后旧running调查变为可恢复partial，必须显式恢复；旧queued继续执行。已经领取的导入/建库中断仍标为失败，需要显式重试；从未领取的pending登记继续执行。已完成派发记录保留用于判重，后续需单独设计归档保留策略。
 
@@ -83,3 +83,5 @@ docker compose up -d api worker
 ## 验收状态
 
 仅记录编译、依赖一致性、JavaScript语法与Compose静态配置检查。按用户要求，没有运行任何测试，未执行Docker build/up、数据库迁移、Redis断线、API-worker联调或崩溃恢复验收，也没有重启现有原生服务。部署前仍需真实环境验证这些路径；本轮不填写通过率或性能数据。
+
+一次只读全分支审查发现三项重要问题并已修正：统一检索锁与数据库锁顺序，PG心跳不再将锁争用误判为租约丢失，迁移空库检查覆盖全部应用业务表。修复后只重新编译及静态检查，没有运行回归测试。执行取舍见[infrastructure-execution.md](infrastructure-execution.md)。

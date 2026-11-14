@@ -140,7 +140,8 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
 
     @app.post("/repositories/{snapshot_id}/retrieval-index", status_code=202)
     def build_retrieval_index(snapshot_id: str, body: RetrievalIndexRequest):
-        with db.atomic():
+        # Match the worker build's retrieval-lock -> database-lock ordering.
+        with service.retrieval.lock,db.atomic():
             job = service.retrieval.register(snapshot_id, body.idempotency_key)
             if job["status"] == "queued":
                 service.queue.put(("retrieval", job["id"]))

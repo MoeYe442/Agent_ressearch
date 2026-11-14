@@ -1,0 +1,54 @@
+{
+  "version": "0.6.0",
+  "checks": [
+    {
+      "command": [
+        "D:\\code\\Agent\\.venv\\Scripts\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "src"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "D:\\code\\Agent\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "node",
+        "--check",
+        "src/repolens/static/workspace.js"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "docker",
+        "compose",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "jinja_templates_compiled": 1,
+  "tests_run": false,
+  "containers_built_or_started": false,
+  "live_providers_called": false,
+  "runtime_acceptance": "not performed"
+}
