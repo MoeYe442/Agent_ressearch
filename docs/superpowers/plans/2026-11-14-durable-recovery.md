@@ -45,40 +45,40 @@
 
 ### Task 1: Fenced persistence primitives and official checkpointer
 
-- [ ] 写tests/test_execution_store.py、tests/test_checkpoints.py，先观察缺模块RED；验证有效租约拒绝第二worker、过期接管、epoch拒绝旧写入、配置指纹不含秘密、checkpoint与pending writes真实恢复。
-- [ ] 在隔离环境验证官方3.1.3与现锁兼容，pip check；安装相同锁到项目。SqliteSaver原表结构不另造checkpoint格式。
-- [ ] 实现WorkerLease、ExecutionSession、FencedSqliteSaver；BEGIN IMMEDIATE内校验租约/epoch并写入，损坏或不匹配不恢复。
-- [ ] 对应测试通过后提交。
+- [x] 写tests/test_execution_store.py、tests/test_checkpoints.py，先观察缺模块RED；验证有效租约拒绝第二worker、过期接管、epoch拒绝旧写入、配置指纹不含秘密、checkpoint与pending writes真实恢复。
+- [x] 在隔离环境验证官方3.1.3与现锁兼容，pip check；安装相同锁到项目。SqliteSaver原表结构不另造checkpoint格式。
+- [x] 实现WorkerLease、ExecutionSession、FencedSqliteSaver；BEGIN IMMEDIATE内校验租约/epoch并写入，损坏或不匹配不恢复。
+- [x] 对应测试通过后提交。
 
 ### Task 2: Durable budgets and provider/tool replay
 
-- [ ] 写tests/test_recovery_budget.py、tests/test_recovery_gateway.py，先RED；覆盖实际/未知请求、恢复不重置总量/子任务计数/stop_reason/deadline，成功和失败响应缓存、辅助模型缓存，已缓存重放不增量。
-- [ ] BudgetManager接受可选session，原直接调用兼容；模型cache key来自固定role/subtask/payload/retry/config，响应与结算原子保存。未完成请求在恢复时转unknown但保留计数/预留。
-- [ ] Agent工具cache使用固定model tool-call ID/参数/角色，返回前复核证据；重放事件与新执行事件区分，保存的工具结果不再次计数。
-- [ ] 新测试与原预算/gateway/Agent/检索回归通过后提交。
+- [x] 写tests/test_recovery_budget.py、tests/test_recovery_gateway.py，先RED；覆盖实际/未知请求、恢复不重置总量/子任务计数/stop_reason/deadline，成功和失败响应缓存、辅助模型缓存，已缓存重放不增量。
+- [x] BudgetManager接受可选session，原直接调用兼容；模型cache key来自固定role/subtask/payload/retry/config，响应与结算原子保存。未完成请求在恢复时转unknown但保留计数/预留。
+- [x] Agent工具cache使用固定model tool-call ID/参数/角色，返回前复核证据；重放事件与新执行事件区分，保存的工具结果不再次计数。
+- [x] 新测试与原预算/gateway/Agent/检索回归通过后提交。
 
 ### Task 3: Real graph recovery and fenced worker lifecycle
 
-- [ ] 写tests/test_task_recovery.py、tests/test_graph_recovery.py，先RED。覆盖single中途与graph分支间中断、模型响应已保存但节点未完成、graph结束但任务终态未提交，以及service stop与用户cancel的差异。
-- [ ] 为single提供实际StateGraph外壳；协作图使用同一session/checkpointer，sync durability，恢复传None，已完成checkpoint不重新规划。读取保存的完整结果完成崩溃终态窗口。
-- [ ] 服务取得租约后分类旧running；有有效持久执行的中断变partial+resume_available，旧无checkpoint维持failed/interrupted。只显式resume排队，不自动产生新费用。
-- [ ] heartbeat失去租约后停止，旧响应只能被拒绝；原子终态与预算保持一致。API请求、进程停止都排空已发调用或保留未知预留。
-- [ ] 新图/任务/旧兼容回归通过后提交。
+- [x] 写tests/test_task_recovery.py、tests/test_graph_recovery.py，先RED。覆盖single中途与graph分支间中断、模型响应已保存但节点未完成、graph结束但任务终态未提交，以及service stop与用户cancel的差异。
+- [x] 为single提供实际StateGraph外壳；协作图使用同一session/checkpointer，sync durability，恢复传None，已完成checkpoint不重新规划。读取保存的完整结果完成崩溃终态窗口。
+- [x] 服务取得租约后分类旧running；有有效持久执行的中断变partial+resume_available，旧无checkpoint维持failed/interrupted。只显式resume排队，不自动产生新费用。
+- [x] heartbeat失去租约后停止，旧响应只能被拒绝；原子终态与预算保持一致。API请求、进程停止都排空已发调用或保留未知预留。
+- [x] 新图/任务/旧兼容回归通过后提交。
 
 ### Task 4: API and recovery workbench
 
-- [ ] 写tests/test_recovery_api.py、tests/browser/test_recovery_workspace.py，先RED；重复resume、旧key重试、状态冲突、cancel竞争、过期/配置变更拒绝、刷新/SSE补发和320/390/736/1024无溢出。
-- [ ] POST/tasks/{id}/resume只恢复有效partial，同任务预算/快照/策略、attempt递增。相同resume意图幂等，不重复worker执行；旧无checkpoint可返回404，状态冲突409。
-- [ ] 新任务字段默认兼容：attempt、execution_epoch、resume_available、recovery_error；页面仅对可恢复partial展示恢复，明确剩余额度/绝对时限和未知请求可能重复费用。
-- [ ] 全API/浏览器回归通过后提交。
+- [x] 写tests/test_recovery_api.py、tests/browser/test_recovery_workspace.py，先RED；重复resume、旧key重试、状态冲突、cancel竞争、过期/配置变更拒绝、刷新/SSE补发和320/390/736/1024无溢出。
+- [x] POST/tasks/{id}/resume只恢复有效partial，同任务预算/快照/策略、attempt递增。相同resume意图幂等，不重复worker执行；旧无checkpoint可返回404，状态冲突409。
+- [x] 新任务字段默认兼容：attempt、execution_epoch、resume_available、recovery_error；页面仅对可恢复partial展示恢复，明确剩余额度/绝对时限和未知请求可能重复费用。
+- [x] 全API/浏览器回归通过后提交。
 
 ### Task 5: Process crash injection, audit and delivery
 
-- [ ] tests/test_recovery_process.py使用真实子进程在固定边界退出/接管，统计脚本供应商调用，验证已保存结果不重复、pending writes、预算/fencing/取消/终态和事件。无真实供应商调用。
-- [ ] 记录故障位置、恢复与重复调用/估算结果，不将恢复率当质量。保留失败分母，包含过期与版本不匹配负向用例。
-- [ ] 更新README、配置/锁、版本、恢复边界与验收说明；真实模型仍未配置，不宣称实测费用或exactly-once。
-- [ ] pytest全量、compileall src、pip check；原292项回归保留。一次fresh-context全分支审查，重要修复RED→GREEN后再全量验证。
-- [ ] 正式默认服务启动/兼容检查、源码ZIP与hash校验、本地提交保留分支；不自动推送，不改网络/容器配置。
+- [x] tests/test_recovery_process.py使用真实子进程在固定边界退出/接管，统计脚本供应商调用，验证已保存结果不重复、pending writes、预算/fencing/取消/终态和事件。无真实供应商调用。
+- [x] 记录故障位置、恢复与重复调用/估算结果，不将恢复率当质量。保留失败分母，包含过期与版本不匹配负向用例。
+- [x] 更新README、配置/锁、版本、恢复边界与验收说明；真实模型仍未配置，不宣称实测费用或exactly-once。
+- [x] pytest全量、compileall src、pip check；原292项回归保留。一次fresh-context全分支审查，重要修复RED→GREEN后再全量验证。
+- [x] 正式默认服务启动/兼容检查、源码ZIP与hash校验、本地提交保留分支；不自动推送，不改网络/容器配置。
 
 ## Official references
 

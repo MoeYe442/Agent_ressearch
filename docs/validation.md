@@ -32,3 +32,9 @@
 首轮全量 280 passed，277.88s，含36项浏览器测试；compileall和pip check通过。15条离线三配置比较已导出，quality保持null。正式0.4.0服务默认keyword启动与页面检查通过，混合检索未配置时明确409；未启动Docker或调用真实Embedding/Rerank。详细方案和边界见 docs/hybrid-retrieval.md。最终独立审查待完成。
 
 V2.1 最终独立审查修复后：**292 passed，273.96s**，含36项浏览器测试；compileall和pip check通过。七类重要问题（含重新分级的上传计数）均RED→GREEN并完成整套回归。两项轻微诊断问题暂缓；真实服务待配置后验收。执行与取舍见 docs/hybrid-execution.md。正式默认keyword服务已重启验证，未配置hybrid拒绝也带正确零调用账本。
+
+## V3 本地持久恢复增量（2026-11-15）
+
+最终独立审查修复后：**339 passed，371.57s**，含42项浏览器测试；compileall和pip check通过。三项重要问题（msgpack构造器限制、hybrid失效代与累计用量、完整执行指纹）均RED→GREEN。四种真实进程退出和四种无新调用拒绝场景均通过；评测明确synthetic，质量为null，不代表真实费用或答案质量。源码包附最终全量输出、启动检查、桌面/移动端截图及SHA256清单。
+
+正式0.5.0服务已重启，未配置模型时零调用明确失败、恢复拒绝409，默认single/keyword页面无JavaScript异常。保留一项轻微页面取消入口问题，API取消可用；本轮仍为SQLite单worker调查恢复，未实现生产分布式工程化或导入/建库恢复。详见 docs/durable-recovery.md、docs/durable-execution.md、docs/results/recovery-synthetic.json。

@@ -17,6 +17,7 @@ from repolens.execution_store import WorkerLease,ExecutionSession,WorkerPaused,L
 from repolens.recovery import signature,eligibility,current_usage,paused_report,saved_run
 from repolens.checkpoints import checkpoint_exists
 from repolens.single_graph import DurableSingleRunner
+from repolens.review import render_report
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -60,7 +61,7 @@ class TaskService:
                 elif task.status == "queued":
                     self.queue.put(("task", task.id))
                 elif task.status=='partial' and task.error_code=='interrupted':
-                    available,error=eligibility(self.db,task,self.settings)
+                    available,error=eligibility(self.db,task,self.settings,retrieval=self.retrieval)
                     if (task.resume_available,task.recovery_error)!=(available,error):
                         task.resume_available,task.recovery_error=available,error
                         self._save(task,'recovery_checked',{'resume_available':available,'error_code':error})
@@ -113,7 +114,7 @@ class TaskService:
             run=saved_run(self.db,task_id)
             task.recovery_deadline=run['deadline'] if run else None
             task.error_code=None if task.cancel_requested else 'interrupted'
-            task.resume_available,task.recovery_error=eligibility(self.db,task,self.settings) if not task.cancel_requested else (False,None)
+            task.resume_available,task.recovery_error=eligibility(self.db,task,self.settings,retrieval=self.retrieval) if not task.cancel_requested else (False,None)
             if graph is not None:graph={**graph,'issues':[*graph.get('issues',[]),'interrupted']}
             self._save(task,'task_finished',{'status':task.status,'error_code':task.error_code,'resume_available':task.resume_available,'usage':task.usage.model_dump()},report=report,graph=graph,execution_epoch=task.execution_epoch)
 
@@ -132,7 +133,7 @@ class TaskService:
                 return task
             if not saved_run(self.db,task_id) or not checkpoint_exists(self.db,task_id):raise KeyError('recovery_checkpoint_missing')
             if task.status!='partial' or task.error_code!='interrupted' or task.cancel_requested:raise ValueError('task_not_resumable')
-            available,error=eligibility(self.db,task,self.settings,validate_sources=True)
+            available,error=eligibility(self.db,task,self.settings,validate_sources=True,retrieval=self.retrieval)
             if not available:raise ValueError(error)
             task.status='queued';task.attempt+=1;task.resume_available=False;task.recovery_error=None;task.error_code=None
             # Task/event/graph and the resume key share the same authoritative transaction.
@@ -345,6 +346,12 @@ class TaskService:
                     raise ValueError("retrieval_configuration_changed")
             except ValueError as exc:
                 result = AnalysisResult(status="failed", usage=Usage(), mode=task.mode, limitations=[str(exc)])
+                if task.recovery_enabled and saved_run(self.db,task_id):
+                    try:runner.last_view=self.db.get('graphs',task_id)
+                    except KeyError:pass
+                    result=paused_report(self.db,task,runner.last_view)
+                    result.status='failed';result.limitations=[str(exc)]
+                    result.markdown=render_report(result.claims,result.limitations)
         if result is None:
             try:
                 if task.recovery_enabled:

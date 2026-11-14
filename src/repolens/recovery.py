@@ -12,10 +12,13 @@ from repolens.review import collect_claims,render_report
 
 def signature(task,settings,db):
     snapshot=db.get_snapshot(task.snapshot_id)
-    names=['agent.py','orchestration.py','single_graph.py','tools.py','model_gateway.py','budget.py','retrieval.py','models.py','execution_store.py','checkpoints.py','recovery.py']
-    source={name:hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest() for name in names}
+    root=Path(__file__).parent
+    source={path.relative_to(root).as_posix():hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(root.rglob('*.py'))}
     provider={name:hashlib.sha256(getattr(settings,name).encode()).hexdigest() for name in ['model_url','embedding_url','rerank_url','milvus_url']}
-    return {'version':'recovery-v1','source':source,'provider':provider,'model':settings.model_name,'embedding_model':settings.embedding_model,'dimensions':settings.embedding_dimensions,'rerank_model':settings.rerank_model,'test_environment':settings.test_environment,'snapshot_id':task.snapshot_id,'manifest':digest(snapshot.manifest),'question':digest(task.question),'mode':task.mode,'retrieval_mode':task.retrieval_mode,'rerank':task.rerank,'retrieval_configuration':task.retrieval_configuration,'task_limits':task.budget_limits,'runtime_limits':{k:getattr(settings,k) for k in ['max_model_calls','max_tool_calls','max_tokens','max_seconds','max_output_tokens']}}
+    # Bind every non-secret setting; paths do not alter the frozen snapshot semantics.
+    excluded={'workspace_root','data_dir',*provider}
+    runtime={key:value for key,value in settings.model_dump(mode='json').items() if key not in excluded and not hasattr(getattr(settings,key),'get_secret_value')}
+    return {'version':'recovery-v1','source':source,'provider':provider,'execution_configuration':runtime,'model':settings.model_name,'embedding_model':settings.embedding_model,'dimensions':settings.embedding_dimensions,'rerank_model':settings.rerank_model,'test_environment':settings.test_environment,'snapshot_id':task.snapshot_id,'manifest':digest(snapshot.manifest),'question':digest(task.question),'mode':task.mode,'retrieval_mode':task.retrieval_mode,'rerank':task.rerank,'retrieval_configuration':task.retrieval_configuration,'task_limits':task.budget_limits,'runtime_limits':{k:getattr(settings,k) for k in ['max_model_calls','max_tool_calls','max_tokens','max_seconds','max_output_tokens']}}
 
 
 def saved_run(db,task_id):
@@ -29,11 +32,18 @@ def saved_run(db,task_id):
     except (ValueError,TypeError):return None
 
 
-def eligibility(db,task,settings,*,validate_sources=False):
+def eligibility(db,task,settings,*,validate_sources=False,retrieval=None):
     run=saved_run(db,task.id)
     if not task.recovery_enabled or not run or not checkpoint_exists(db,task.id):return False,'recovery_checkpoint_missing'
     if run.get('recovery_error'):return False,run['recovery_error']
     if run['signature']!=signature(task,settings,db) or digest(run['signature'])!=task.recovery_config_hash:return False,'recovery_configuration_changed'
+    if task.retrieval_mode=='hybrid':
+        if retrieval is None:
+            from repolens.retrieval import RetrievalService
+            retrieval=RetrievalService(settings,db)
+        try:
+            if retrieval.ready(task.snapshot_id)['id']!=task.retrieval_configuration.get('index_id'):return False,'retrieval_configuration_changed'
+        except ValueError as exc:return False,str(exc)
     if time.time()>=run['deadline']:return False,'time_budget_exhausted'
     try:
         budget=run['budget'];usage=Usage.model_validate(budget['usage'])

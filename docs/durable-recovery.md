@@ -34,7 +34,9 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/tasks/TASK_ID/resume'
 
 单worker数据库租约每隔约1.7秒续租，默认有效期5秒。另一实例在租约有效时拒绝接管；崩溃后须等待旧租约到期。延迟心跳仅在owner/epoch未被替换时可续租；新epoch接管后，旧worker不能再写任务、图、报告、预算、journal或checkpoint。执行代号还隔离同一任务的旧轮次。
 
-所有核心写入在SQLite写事务内检查租约；checkpoint沿用官方格式，仅在事务入口加fencing，并关闭pickle fallback。终态、报告、图、用量和恢复键/排队事件保持原子提交。SQLite仍是唯一权威，未用Redis作为事实存储。
+所有核心写入在SQLite写事务内检查租约；checkpoint沿用官方格式，仅在事务入口加fencing，关闭pickle fallback并显式启用msgpack安全类型限制，不能调用未登记构造器。终态、报告、图、用量和恢复键/排队事件保持原子提交。SQLite仍是唯一权威，未用Redis作为事实存储。
+
+恢复指纹覆盖整个应用Python模块和非秘密、非路径配置（包括图递归限制、服务超时和Milvus集合），服务地址只保存hash。此策略保守拒绝升级后的旧任务；不尝试跨版本迁移。hybrid恢复先检查原索引代仍为当前ready代；若接受后索引失效，执行失败仍保留原累计用量、角色用量和已核验结果。
 
 恢复范围仅限调查。中断的仓库导入和向量建库仍失败，需要独立显式重试，不宣称这些作业可恢复。缓存/检查点与原始源码属于本地数据目录，不随Git和源码交付包发布。
 
@@ -52,3 +54,11 @@ $env:REPOLENS_RECOVERY_AUDIT_RUN = [guid]::NewGuid().ToString('N')
 固定八个场景：响应已保存、请求在途、终态提交前、并行分支已保存，以及过期、模型配置变化、快照篡改、取消四个拒绝场景。前四个用真实子进程退出并由新worker接管；记录同一task、轮次、实际脚本调用、累计用量和estimated。负向场景不产生新provider调用。
 
 汇总只接受本次run ID；缺失、失败或旧记录保留在固定分母中。恢复率只指这个固定机械测试集，不代表真实服务可用性、答案质量或费用节省。所有quality_pass保持null。
+
+## 最终审查
+
+一次只读全分支审查发现三项重要问题，均先复现失败再修复：显式限制msgpack构造器；恢复前拒绝失效/被替换的hybrid索引，并处理接受后的失效竞争，避免累计用量清零；补齐执行配置与全部应用Python模块指纹。保留真实Send并行pending writes回归。
+
+暂缓一项轻微问题：可恢复partial的页面取消按钮仍不可用。任务保持暂停且不自动计费；可调用`POST /tasks/{id}/cancel`明确取消。审查取舍和执行账本见 [durable-execution.md](durable-execution.md)。
+
+最终全量回归：**339 passed，371.57s**，包含42项浏览器测试；compileall与pip check通过。四种真实子进程退出全部恢复，四种拒绝场景全部阻止新调用，固定八项审计均有本次run ID记录；可复核 [汇总](results/recovery-synthetic.json)。正式0.5.0服务重启后，默认single/keyword、未配置模型提示、零模型调用和resume409均符合预期，页面无JavaScript异常。

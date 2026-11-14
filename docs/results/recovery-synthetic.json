@@ -1,0 +1,202 @@
+{
+  "created_at": "2026-11-14T16:14:35.380961+00:00",
+  "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+  "synthetic": true,
+  "exactly_once_claim": false,
+  "quality_note": "Scripted provider counts verify recovery mechanics, not real quality or billing. Unknown in-flight requests retain conservative reservations and may be paid again. Missing/failed cases remain in the denominator.",
+  "summary": {
+    "all_cases": 8,
+    "interruption_cases": 4,
+    "successful_resumes": 4,
+    "negative_controls": 4,
+    "correctly_rejected": 4,
+    "missing_or_failed": 0,
+    "recovery_rate": 1.0
+  },
+  "results": [
+    {
+      "case": "response",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:13:45.333273+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "succeeded",
+      "task_id": "47e64d021a4e45e4b37f206498371712",
+      "same_task_id": true,
+      "attempt": 2,
+      "execution_epoch": 2,
+      "provider_calls_observed": 3,
+      "new_provider_calls": 2,
+      "usage": {
+        "model_calls": 3,
+        "tool_calls": 2,
+        "input_tokens": 450,
+        "output_tokens": 80,
+        "estimated": false,
+        "elapsed_ms": 5424.35,
+        "revision": 8
+      },
+      "completed_code_replayed_without_execution": false,
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "observed": true
+    },
+    {
+      "case": "inflight",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:13:52.883113+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "succeeded",
+      "task_id": "e50861a3a89648c6835182ec89f189f8",
+      "same_task_id": true,
+      "attempt": 2,
+      "execution_epoch": 2,
+      "provider_calls_observed": 4,
+      "new_provider_calls": 3,
+      "usage": {
+        "model_calls": 4,
+        "tool_calls": 2,
+        "input_tokens": 7155,
+        "output_tokens": 2128,
+        "estimated": true,
+        "elapsed_ms": 5436.86,
+        "revision": 10
+      },
+      "completed_code_replayed_without_execution": false,
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "observed": true
+    },
+    {
+      "case": "terminal",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:14:00.169280+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "succeeded",
+      "task_id": "a0c5347277fe417d9ae46f95db96c0c4",
+      "same_task_id": true,
+      "attempt": 2,
+      "execution_epoch": 2,
+      "provider_calls_observed": 3,
+      "new_provider_calls": 0,
+      "usage": {
+        "model_calls": 3,
+        "tool_calls": 2,
+        "input_tokens": 450,
+        "output_tokens": 80,
+        "estimated": false,
+        "elapsed_ms": 5173.57,
+        "revision": 8
+      },
+      "completed_code_replayed_without_execution": false,
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "observed": true
+    },
+    {
+      "case": "parallel",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:14:07.812766+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "succeeded",
+      "task_id": "e1655498ec424b8bb6a06729f8a7f7ce",
+      "same_task_id": true,
+      "attempt": 2,
+      "execution_epoch": 2,
+      "provider_calls_observed": 7,
+      "new_provider_calls": 3,
+      "usage": {
+        "model_calls": 7,
+        "tool_calls": 2,
+        "input_tokens": 7562,
+        "output_tokens": 2248,
+        "estimated": true,
+        "elapsed_ms": 5704.26,
+        "revision": 16
+      },
+      "completed_code_replayed_without_execution": true,
+      "budget_limits": {
+        "max_model_calls": 30,
+        "max_tool_calls": 30,
+        "max_tokens": 60000,
+        "max_seconds": 900,
+        "max_output_tokens": 2048
+      },
+      "observed": true
+    },
+    {
+      "case": "expired",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:13:34.098372+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "rejected",
+      "error_code": "time_budget_exhausted",
+      "new_provider_calls": 0,
+      "attempt": 1,
+      "observed": true
+    },
+    {
+      "case": "model",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:13:34.605358+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "rejected",
+      "error_code": "recovery_configuration_changed",
+      "new_provider_calls": 0,
+      "attempt": 1,
+      "observed": true
+    },
+    {
+      "case": "snapshot",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:13:35.127608+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "rejected",
+      "error_code": "recovery_snapshot_changed",
+      "new_provider_calls": 0,
+      "attempt": 1,
+      "observed": true
+    },
+    {
+      "case": "cancel",
+      "run_id": "6f3a551c18024ac3a7b7536d51c2b4cc",
+      "recorded_at": "2026-11-14T16:13:35.651850+00:00",
+      "synthetic": true,
+      "quality_pass": null,
+      "passed": true,
+      "status": "rejected",
+      "error_code": "task_not_resumable",
+      "new_provider_calls": 0,
+      "attempt": 1,
+      "observed": true
+    }
+  ]
+}

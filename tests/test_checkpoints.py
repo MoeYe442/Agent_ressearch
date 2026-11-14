@@ -41,3 +41,16 @@ def test_expired_worker_cannot_commit_checkpoint(indexed):
     now[0]=106.;replacement=WorkerLease(indexed[1],ttl=5,clock=lambda:now[0]);replacement.acquire()
     with saver_for(s) as saver:
         with pytest.raises(LeaseLost):builder.compile(checkpointer=saver).invoke({'values':[]},{'configurable':{'thread_id':'durable'}},durability='sync')
+
+
+def test_checkpoint_deserializer_never_invokes_unregistered_constructor(indexed,monkeypatch):
+    import os
+    import ormsgpack
+    called=[]
+    monkeypatch.setattr(os,'getcwd',lambda:called.append(True) or 'unsafe-constructor')
+    payload=ormsgpack.packb(ormsgpack.Ext(1,ormsgpack.packb(('os','getcwd',[]))))
+    s,lease=session(indexed)
+    try:
+        with saver_for(s) as saver:saver.serde.loads_typed(('msgpack',payload))
+        assert called==[]
+    finally:lease.release()

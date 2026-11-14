@@ -7,7 +7,7 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
 class FencedSqliteSaver(SqliteSaver):
     def __init__(self,conn,session):
-        super().__init__(conn,serde=JsonPlusSerializer(pickle_fallback=False))
+        super().__init__(conn,serde=JsonPlusSerializer(pickle_fallback=False,allowed_msgpack_modules=None))
         self.session=session
         self.setup()
 
