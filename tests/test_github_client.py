@@ -94,9 +94,10 @@ def test_trickling_response_hits_total_deadline(tmp_path):
             for _ in range(100):
                 await asyncio.sleep(.03)
                 yield b" "
+    adapter = client(tmp_path, lambda r: response(stream=Trickle()), github_import_timeout=.15)
     started = time.monotonic()
     with pytest.raises(GitHubError, match="github_import_timeout"):
-        client(tmp_path, lambda r: response(stream=Trickle()), github_import_timeout=.15).resolve(GitHubSource.parse("https://github.com/example/demo"))
+        adapter.resolve(GitHubSource.parse("https://github.com/example/demo"))
     assert time.monotonic() - started < 1
 
 

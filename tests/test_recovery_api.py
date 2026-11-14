@@ -7,6 +7,7 @@ from repolens.tasks import TaskService
 from tests.test_task_recovery import interrupted
 from tests.scripted_model import ScriptedModel
 from tests.test_collaborative_api import wait
+from tests.recovery_audit import write_case
 
 
 def test_resume_key_and_queue_transition_are_atomic(indexed):
@@ -48,3 +49,4 @@ def test_resume_rejects_changed_or_terminal_context_without_provider(indexed,cha
         response=client.post('/tasks/'+task_id+'/resume',json={'idempotency_key':'reject'})
         assert response.status_code==409 and response.json()['error_code']==expected
         assert not calls and client.get('/tasks/'+task_id).json()['attempt']==1
+        write_case(change,{'status':'rejected','error_code':response.json()['error_code'],'new_provider_calls':len(calls),'attempt':1})

@@ -1,8 +1,8 @@
-# RepoLens V2.1
+# RepoLens V3.0 · 本地持久恢复
 
 Agent_ressearch：基于固定快照和可复查引用的开源项目研读平台。
 
-本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / FTS5 检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击源码证据。Python 3.12+，FastAPI + SQLite + Jinja2 / 原生 JavaScript。当前包版本 0.4.0。
+本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / FTS5 检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击源码证据。Python 3.12+，FastAPI + SQLite + Jinja2 / 原生 JavaScript。当前包版本 0.5.0。
 
 ## Windows PowerShell 启动
 
@@ -57,7 +57,7 @@ API 示例：`POST /repositories` JSON 为 `{"github_url":"https://github.com/pa
 - 每个读取窗口最多 160 行。索引包含 Python 符号/导入/装饰器行范围和 Markdown 标题，语法错误保留全文检索。FTS5 不可用则明确报依赖错误。
 - 引用校验快照、路径、行号与 SHA-256，且模型只能引用本任务实际看到的证据。`references_valid` **不表示语义得到证明**；人工检查引用是否支持结论。内部 `succeeded` 仅表示流程产出合规报告。
 - SSE 事件持久化，Last-Event-ID / after 支持补发；刷新通过 URL 的 task_id 恢复页面。未确认提交的快照与幂等键保存在当前标签页 sessionStorage，刷新/重试复用原请求。断开网页不会取消后台任务。取消会在当前模型请求返回或超时后的边界生效，不保证即时中止已发出的网络请求；HTTP 请求有整体 wall-clock 超时，并限制响应正文最多 2 MiB。
-- 重启时 running 任务标记 failed/interrupted，旧 queued 重新排队；未完成导入标为 interrupted_import，无跨进程断点恢复。私有 GitHub、Redis、MCP 与网页采集仍未实现。Milvus 可配置接入，真实服务联调待验收。
+- 具备持久checkpoint的中断调查保留为可恢复partial，需用户显式恢复且保留原预算/截止时间；旧无checkpoint的running仍failed/interrupted，旧queued重新排队。未完成导入/建库仍失败，不恢复。私有 GitHub、Redis、MCP 与网页采集仍未实现。Milvus 可配置接入，真实服务联调待验收。
 - 数据放在 `REPOLENS_DATA`（默认当前目录 `.data`），包含快照、SQLite WAL、事件、工具结果与报告。**先停止服务**，确认数据目录后用 `Remove-Item -LiteralPath 'D:\code\Agent\.data' -Recurse` 清理；会删除所有本地历史。源码不受影响。
 
 ## 测试与评测
@@ -90,3 +90,9 @@ API 示例：`POST /repositories` JSON 为 `{"github_url":"https://github.com/pa
 新增可配置 Milvus REST v2、Embedding 和可选重排。默认仍使用关键词检索；只有显式选择 hybrid 才建库并调用新增服务。查询中的辅助模型与 LLM 共用调查预算，所有候选继续绑定固定快照与原文 hash。
 
 本轮完成离线 HTTP 契约与集成回归，真实服务配置后验收。配置、资源要求、检索比较和限制见 [混合检索说明](docs/hybrid-retrieval.md)。
+
+## V3 本地持久恢复
+
+新调查使用真实LangGraph SQLite checkpoint与持久预算；服务中断后可显式恢复同一task，重放已保存结果并保留已用额度和原始900秒截止时间。用户取消保持终止；未保存的在途请求可能重复费用，保守预留不清零。旧无checkpoint任务保持原有失败语义。
+
+升级前停止旧服务。恢复按钮、租约隔离、故障注入复跑及边界见 [持久恢复说明](docs/durable-recovery.md)。本轮仍为单worker/SQLite增量，Redis、PostgreSQL和网页采集未交付。
