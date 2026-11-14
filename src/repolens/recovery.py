@@ -3,7 +3,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
-from repolens.execution_store import digest
+from repolens.execution_store import digest,unseal,RecoveryRejected
 from repolens.checkpoints import checkpoint_exists
 from repolens.models import AnalysisResult,Usage,Claim
 from repolens.evidence import EvidenceStore
@@ -12,7 +12,7 @@ from repolens.review import collect_claims,render_report
 
 def signature(task,settings,db):
     snapshot=db.get_snapshot(task.snapshot_id)
-    names=['agent.py','orchestration.py','single_graph.py','tools.py','model_gateway.py','budget.py','retrieval.py','models.py']
+    names=['agent.py','orchestration.py','single_graph.py','tools.py','model_gateway.py','budget.py','retrieval.py','models.py','execution_store.py','checkpoints.py','recovery.py']
     source={name:hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest() for name in names}
     provider={name:hashlib.sha256(getattr(settings,name).encode()).hexdigest() for name in ['model_url','embedding_url','rerank_url','milvus_url']}
     return {'version':'recovery-v1','source':source,'provider':provider,'model':settings.model_name,'embedding_model':settings.embedding_model,'dimensions':settings.embedding_dimensions,'rerank_model':settings.rerank_model,'test_environment':settings.test_environment,'snapshot_id':task.snapshot_id,'manifest':digest(snapshot.manifest),'question':digest(task.question),'mode':task.mode,'retrieval_mode':task.retrieval_mode,'rerank':task.rerank,'retrieval_configuration':task.retrieval_configuration,'task_limits':task.budget_limits,'runtime_limits':{k:getattr(settings,k) for k in ['max_model_calls','max_tool_calls','max_tokens','max_seconds','max_output_tokens']}}
@@ -22,13 +22,17 @@ def saved_run(db,task_id):
     with db.connect() as conn:row=conn.execute('SELECT * FROM execution_runs WHERE task_id=?',(task_id,)).fetchone()
     if not row:return None
     try:
-        return {**dict(row),'signature':json.loads(row['signature']),'budget':json.loads(row['budget']) if row['budget'] else None}
+        value={**dict(row),'signature':json.loads(row['signature']),'budget':None}
+        if row['budget']:value['budget']=unseal(row['budget'],'recovery_budget_corrupt')
+        return value
+    except RecoveryRejected:return {**dict(row),'signature':{},'budget':None,'recovery_error':'recovery_budget_corrupt'}
     except (ValueError,TypeError):return None
 
 
 def eligibility(db,task,settings,*,validate_sources=False):
     run=saved_run(db,task.id)
     if not task.recovery_enabled or not run or not checkpoint_exists(db,task.id):return False,'recovery_checkpoint_missing'
+    if run.get('recovery_error'):return False,run['recovery_error']
     if run['signature']!=signature(task,settings,db) or digest(run['signature'])!=task.recovery_config_hash:return False,'recovery_configuration_changed'
     if time.time()>=run['deadline']:return False,'time_budget_exhausted'
     try:
@@ -49,7 +53,9 @@ def eligibility(db,task,settings,*,validate_sources=False):
 
 def current_usage(db,task_id):
     run=saved_run(db,task_id)
-    if not run or not run['budget']:return Usage(estimated=True)
+    if not run or not run['budget']:
+        try:return Usage.model_validate(db.get('tasks',task_id).get('usage') or {}).model_copy(update={'estimated':True})
+        except (ValueError,KeyError):return Usage(estimated=True)
     state=run['budget']
     return Usage.model_validate({**state['usage'],'estimated':state['unknown_usage'] or bool(state['pending']),'elapsed_ms':max(0,time.time()-run['started'])*1000})
 

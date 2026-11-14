@@ -36,3 +36,12 @@ def test_configuration_mismatch_is_rejected_without_overwriting_run(indexed):
     with pytest.raises(RecoveryRejected):ExecutionSession(indexed[1],'durable',1,lease,{'fixture_version':2})
     assert s.signature=={'fixture_version':1}
     lease.release()
+
+
+def test_delayed_heartbeat_can_renew_only_if_no_replacement_epoch(indexed):
+    now=[100.];old=WorkerLease(indexed[1],ttl=5,clock=lambda:now[0]);old.acquire();now[0]=106.
+    old.renew()
+    competing=WorkerLease(indexed[1],ttl=5,clock=lambda:now[0])
+    with pytest.raises(ValueError,match='worker_already_running'):competing.acquire()
+    now[0]=112.;competing.acquire()
+    with pytest.raises(LeaseLost):old.renew()

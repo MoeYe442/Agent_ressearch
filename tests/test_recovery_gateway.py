@@ -55,3 +55,27 @@ def test_saved_tools_and_model_transcript_replay_without_new_calls(indexed,monke
         assert result.status=='succeeded'
     assert len(calls)==3 and len(tools)==2 and result.usage.model_calls==3 and result.usage.tool_calls==2
     lease.release()
+
+
+def test_modified_cached_tool_body_is_rejected_before_any_new_model(indexed):
+    import json
+    from repolens.agent import AgentRunner
+    from repolens.models import ToolContext
+    from repolens.execution_store import RecoveryRejected
+    from tests.scripted_model import ScriptedModel
+    s,lease=session(indexed);calls=[]
+    class Model(ScriptedModel):
+        def complete(self,*a,**kw):calls.append(True);return super().complete(*a,**kw)
+    context=ToolContext(snapshot_id=indexed[2].id,task_id='durable')
+    AgentRunner(Model(),indexed[5],indexed[0]).run('Question',context,lambda e:None,lambda:False,budget=BudgetManager(indexed[0],session=s))
+    with indexed[1].connect() as conn:
+        row=conn.execute("SELECT cache_key,payload FROM execution_cache WHERE kind='tool' ORDER BY rowid DESC LIMIT 1").fetchone()
+        value=json.loads(row['payload'])
+        # Change a byte in an otherwise valid JSON body, keeping stale integrity metadata.
+        raw=row['payload'].replace('self.store.save','fake.store.save')
+        assert raw!=row['payload']
+        conn.execute("UPDATE execution_cache SET payload=? WHERE kind='tool' AND cache_key=?",(raw,row['cache_key']))
+    with pytest.raises(RecoveryRejected):
+        AgentRunner(Model(),indexed[5],indexed[0]).run('Question',context,lambda e:None,lambda:False,budget=BudgetManager(indexed[0],session=s))
+    assert len(calls)==3
+    lease.release()

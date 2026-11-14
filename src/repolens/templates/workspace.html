@@ -48,6 +48,7 @@
         <div class="task-heading"><div><div class="section-label" id="snapshot-label">SNAPSHOT</div><h2 id="task-question"></h2><p id="repository-label" class="muted"></p></div><span id="task-status" class="status-pill" role="status" aria-live="polite">等待中</span></div>
         <p id="retrieval-label" class="muted" aria-live="polite"></p>
         <div class="metrics"><div><span>模型请求</span><strong id="model-calls">暂无</strong></div><div><span>工具调用</span><strong id="tool-calls">暂无</strong></div><div><span>输入 / 输出 Token</span><strong id="token-usage">暂无</strong></div><div><span>调查耗时</span><strong id="elapsed">暂无</strong></div><button id="cancel-task" class="quiet-button">取消任务</button></div>
+        <section id="recovery-panel" class="card recovery-panel" hidden><p id="recovery-info" aria-live="polite"></p><button id="resume-task" class="primary" hidden>恢复任务</button></section>
         <section id="graph-summary" class="card graph-summary" aria-live="polite" hidden><h3>协作分工</h3><p id="graph-round" class="muted"></p><div id="subtask-list"></div><div id="graph-review"></div><p id="graph-issues" class="muted"></p></section>
         <div class="workspace-grid">
           <section class="card investigation">

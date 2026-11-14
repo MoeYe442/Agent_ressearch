@@ -141,6 +141,7 @@ class AnalysisTask(BaseModel):
     execution_epoch: int = 0
     resume_available: bool = False
     recovery_error: str | None = None
+    recovery_deadline: float | None = None
 
 
 class PlannedTask(BaseModel):

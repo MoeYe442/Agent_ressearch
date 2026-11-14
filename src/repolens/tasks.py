@@ -35,7 +35,7 @@ class TaskService:
         self.stopping = threading.Event()
         self.worker = None
         self.github_client_factory = github_client_factory or GitHubClient
-        self.lease=WorkerLease(db)
+        self.lease=WorkerLease(db,on_lost=self.stopping.set)
 
     def start(self):
         with self.lock:
@@ -110,6 +110,8 @@ class TaskService:
                 except KeyError:pass
             report=paused_report(self.db,task,graph)
             task.status=report.status;task.usage=report.usage
+            run=saved_run(self.db,task_id)
+            task.recovery_deadline=run['deadline'] if run else None
             task.error_code=None if task.cancel_requested else 'interrupted'
             task.resume_available,task.recovery_error=eligibility(self.db,task,self.settings) if not task.cancel_requested else (False,None)
             if graph is not None:graph={**graph,'issues':[*graph.get('issues',[]),'interrupted']}
