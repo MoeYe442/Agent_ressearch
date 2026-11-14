@@ -135,6 +135,12 @@ class AnalysisTask(BaseModel):
     retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
     rerank: bool = False
     retrieval_configuration: dict = Field(default_factory=dict)
+    recovery_enabled: bool = False
+    recovery_config_hash: str | None = None
+    attempt: int = 1
+    execution_epoch: int = 0
+    resume_available: bool = False
+    recovery_error: str | None = None
 
 
 class PlannedTask(BaseModel):

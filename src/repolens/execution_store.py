@@ -6,7 +6,7 @@ import time
 from uuid import uuid4
 
 
-class LeaseLost(BaseException):
+class LeaseLost(Exception):
     pass
 
 

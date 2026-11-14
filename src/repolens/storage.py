@@ -49,11 +49,12 @@ class Database:
     def get_snapshot(self, snapshot_id):
         return RepositorySnapshot.model_validate(self.get("snapshots", snapshot_id))
 
-    def save_task_event(self, task, event, report=None, graph=None):
+    def save_task_event(self, task, event, report=None, graph=None, guard=None,extra_entities=None):
         """Task state and its corresponding event commit atomically."""
         from datetime import datetime, timezone
         with self.connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if guard:guard(conn)
             sequence = conn.execute("SELECT COALESCE(MAX(sequence),0)+1 FROM events WHERE task_id=?", (task.id,)).fetchone()[0]
             event = event.model_copy(update={"task_id": task.id, "sequence": sequence, "timestamp": datetime.now(timezone.utc).isoformat()})
             conn.execute("INSERT OR REPLACE INTO entities VALUES ('tasks',?,?)", (task.id, task.model_dump_json()))
@@ -61,6 +62,8 @@ class Database:
                 conn.execute("INSERT OR REPLACE INTO entities VALUES ('reports',?,?)", (task.id, report.model_dump_json()))
             if graph is not None:
                 conn.execute("INSERT OR REPLACE INTO entities VALUES ('graphs',?,?)", (task.id, json.dumps(graph, ensure_ascii=False)))
+            for kind,key,payload in extra_entities or []:
+                conn.execute('INSERT OR REPLACE INTO entities VALUES (?,?,?)',(kind,key,json.dumps(payload)))
             conn.execute("INSERT INTO events VALUES (?,?,?)", (task.id, sequence, event.model_dump_json()))
         return event
 

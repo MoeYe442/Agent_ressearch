@@ -13,6 +13,10 @@ from repolens.github_import import import_github_snapshot
 from repolens.import_storage import cleanup_import
 from repolens.orchestration import CollaborativeRunner
 from repolens.retrieval import RetrievalService
+from repolens.execution_store import WorkerLease,ExecutionSession,WorkerPaused,LeaseLost,RecoveryRejected,digest
+from repolens.recovery import signature,eligibility,current_usage,paused_report,saved_run
+from repolens.checkpoints import checkpoint_exists
+from repolens.single_graph import DurableSingleRunner
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -31,16 +35,21 @@ class TaskService:
         self.stopping = threading.Event()
         self.worker = None
         self.github_client_factory = github_client_factory or GitHubClient
+        self.lease=WorkerLease(db)
 
     def start(self):
         with self.lock:
             if self.worker is not None:
                 return
+            self.lease.acquire();self.lease.start_heartbeat()
             self.retrieval.interrupt_unfinished()
             # Fresh process startup is explicit failure of interrupted work, never a fake resume.
             for payload in self.db.all("tasks"):
                 task = AnalysisTask.model_validate(payload)
                 if task.status == "running":
+                    if task.recovery_enabled and saved_run(self.db,task.id) and checkpoint_exists(self.db,task.id):
+                        self._pause(task.id)
+                        continue
                     task.status, task.error_code = "failed", "interrupted"
                     try:
                         graph = self.db.get("graphs", task.id)
@@ -50,6 +59,11 @@ class TaskService:
                     self._save(task, "task_finished", {"status": "failed", "error_code": "interrupted"}, graph=graph)
                 elif task.status == "queued":
                     self.queue.put(("task", task.id))
+                elif task.status=='partial' and task.error_code=='interrupted':
+                    available,error=eligibility(self.db,task,self.settings)
+                    if (task.resume_available,task.recovery_error)!=(available,error):
+                        task.resume_available,task.recovery_error=available,error
+                        self._save(task,'recovery_checked',{'resume_available':available,'error_code':error})
             for payload in self.db.all("snapshots"):
                 snapshot = RepositorySnapshot.model_validate(payload)
                 try:
@@ -71,10 +85,58 @@ class TaskService:
         self.stopping.set()
         if self.worker:
             self.worker.join()  # drain/cancel active work; no old worker may publish after return
+        if self.lease.epoch:self.lease.release()
 
-    def _save(self, task, type, payload=None, report=None, graph=None):
+    def _save(self, task, type, payload=None, report=None, graph=None,execution_epoch=None,extra_entities=None):
         task.updated_at = now()
-        return self.db.save_task_event(task, TaskEvent(type=type, payload=payload or {}), report=report, graph=graph)
+        if graph is None and task.mode=='collaborative':
+            try:graph=self.db.get('graphs',task.id)
+            except KeyError:pass
+        if graph is not None:graph={**graph,'status':task.status}
+        def guard(conn):
+            self.lease.guard(conn)
+            if execution_epoch is not None:
+                row=conn.execute("SELECT payload FROM entities WHERE kind='tasks' AND id=?",(task.id,)).fetchone()
+                raw=json.loads(row['payload']) if row else {}
+                if raw.get('execution_epoch',0)!=execution_epoch or raw.get('status')!='running':raise LeaseLost()
+        return self.db.save_task_event(task, TaskEvent(type=type, payload=payload or {}), report=report, graph=graph,guard=guard if self.lease.epoch else None,extra_entities=extra_entities)
+
+    def _pause(self,task_id,runner=None):
+        with self.lock:
+            task=self.get(task_id)
+            graph=getattr(runner,'last_view',None)
+            if graph is None:
+                try:graph=self.db.get('graphs',task_id)
+                except KeyError:pass
+            report=paused_report(self.db,task,graph)
+            task.status=report.status;task.usage=report.usage
+            task.error_code=None if task.cancel_requested else 'interrupted'
+            task.resume_available,task.recovery_error=eligibility(self.db,task,self.settings) if not task.cancel_requested else (False,None)
+            if graph is not None:graph={**graph,'issues':[*graph.get('issues',[]),'interrupted']}
+            self._save(task,'task_finished',{'status':task.status,'error_code':task.error_code,'resume_available':task.resume_available,'usage':task.usage.model_dump()},report=report,graph=graph,execution_epoch=task.execution_epoch)
+
+    def resume(self,task_id,idempotency_key):
+        with self.lock:
+            if self.stopping.is_set():raise ValueError('service_stopping')
+            task=self.get(task_id)
+            try:
+                prior=self.db.get('resume_keys',idempotency_key)
+                if prior['task_id']!=task_id:raise ValueError('idempotency_conflict')
+                return task
+            except KeyError:pass
+            if task.cancel_requested:raise ValueError('task_not_resumable')
+            if task.status in {'queued','running'} and task.attempt>1:
+                self._save(task,'resume_replayed',{'attempt':task.attempt},extra_entities=[('resume_keys',idempotency_key,{'task_id':task_id,'attempt':task.attempt})])
+                return task
+            if not saved_run(self.db,task_id) or not checkpoint_exists(self.db,task_id):raise KeyError('recovery_checkpoint_missing')
+            if task.status!='partial' or task.error_code!='interrupted' or task.cancel_requested:raise ValueError('task_not_resumable')
+            available,error=eligibility(self.db,task,self.settings,validate_sources=True)
+            if not available:raise ValueError(error)
+            task.status='queued';task.attempt+=1;task.resume_available=False;task.recovery_error=None;task.error_code=None
+            # Task/event/graph and the resume key share the same authoritative transaction.
+            self._save(task,'task_resumed',{'attempt':task.attempt,'status':'queued'},extra_entities=[('resume_keys',idempotency_key,{'task_id':task_id,'attempt':task.attempt})])
+            self.queue.put(('task',task_id))
+            return task
 
     def import_repository(self, path, idempotency_key=None):
         source = checked_repo(path, self.settings)
@@ -100,6 +162,7 @@ class TaskService:
                     pass
             with self.db.connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
+                if self.lease.epoch:self.lease.guard(conn)
                 conn.execute("INSERT INTO entities VALUES ('snapshots',?,?)", (snapshot.id, snapshot.model_dump_json()))
                 if idempotency_key:
                     conn.execute("INSERT INTO entities VALUES ('import_idempotency',?,?)", (idempotency_key, json.dumps({"source": source, "source_type": source_type, "ref": ref, "snapshot_id": snapshot.id})))
@@ -112,6 +175,7 @@ class TaskService:
         if retrieval_mode not in {"keyword", "hybrid"} or (rerank and retrieval_mode != "hybrid"):
             raise ValueError("invalid_retrieval_mode")
         with self.lock:
+            if self.stopping.is_set():raise ValueError('service_stopping')
             if idempotency_key:
                 try:
                     prior = self.db.get("idempotency", idempotency_key)
@@ -130,10 +194,12 @@ class TaskService:
                 if rerank and not self.retrieval.rerank_configured:
                     raise ValueError("rerank_not_configured")
                 configuration = {**index["configuration"], "index_id": index["id"], "rerank_model": self.settings.rerank_model if rerank else None}
-            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.4-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration)
+            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.5-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration,recovery_enabled=True)
+            task.recovery_config_hash=digest(signature(task,self.settings,self.db))
             # Single process submission lock; key, task and first event share one transaction.
             with self.db.connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
+                if self.lease.epoch:self.lease.guard(conn)
                 conn.execute("INSERT INTO entities VALUES ('tasks',?,?)", (task.id, task.model_dump_json()))
                 event = TaskEvent(task_id=task.id, sequence=1, type="task_queued", timestamp=now(), payload={"status": "queued"})
                 conn.execute("INSERT INTO events VALUES (?,?,?)", (task.id, 1, event.model_dump_json()))
@@ -153,6 +219,11 @@ class TaskService:
     def cancel(self, task_id):
         with self.lock:
             task = self.get(task_id)
+            if task.status=='partial' and task.resume_available:
+                task.cancel_requested=True;task.status='cancelled';task.resume_available=False
+                report=paused_report(self.db,task)
+                self._save(task,'task_finished',{'status':'cancelled'},report=report)
+                return task
             if task.status in TERMINAL or task.cancel_requested:
                 return task
             task.cancel_requested = True
@@ -174,6 +245,14 @@ class TaskService:
                     self.retrieval.build(key, self.stopping.is_set)
                 else:
                     self._execute(key)
+            except LeaseLost:
+                self.stopping.set()
+            except RecoveryRejected as exc:
+                with self.lock:
+                    task=self.get(key);task.status='failed';task.error_code=exc.code;task.resume_available=False
+                    task.usage=current_usage(self.db,key)
+                    report=AnalysisResult(status='failed',mode=task.mode,usage=task.usage,limitations=[exc.code])
+                    self._save(task,'task_finished',{'status':'failed','error_code':exc.code},report=report,execution_epoch=task.execution_epoch)
             except Exception:
                 # An individual job must not kill the queue or expose exception text/secrets.
                 if kind == "task":
@@ -234,10 +313,12 @@ class TaskService:
             if task.status != "queued":
                 return
             task.status = "running"
+            task.execution_epoch+=1;task.resume_available=False
             self._save(task, "task_started", {"status": "running"})
+            epoch=task.execution_epoch
 
         def cancelled():
-            return self.stopping.is_set() or self.get(task_id).cancel_requested
+            return (self.stopping.is_set() and not task.recovery_enabled) or self.get(task_id).cancel_requested
 
         def emit(event):
             with self.lock:
@@ -251,9 +332,9 @@ class TaskService:
                 if graph is not None:
                     graph = {**graph, "status": current.status}
                     payload = {**payload, "graph": graph}
-                self._save(current, event.type, payload, graph=graph)
+                self._save(current, event.type, payload, graph=graph,execution_epoch=epoch)
 
-        runner = CollaborativeRunner(self.model, self.registry, self.settings) if task.mode == "collaborative" else AgentRunner(self.model, self.registry, self.settings)
+        runner = CollaborativeRunner(self.model, self.registry, self.settings) if task.mode == "collaborative" else DurableSingleRunner(self.model,self.registry,self.settings) if task.recovery_enabled else AgentRunner(self.model, self.registry, self.settings)
         context = ToolContext(snapshot_id=task.snapshot_id, task_id=task_id, retrieval_mode=task.retrieval_mode, rerank=task.rerank, retrieval_index_id=task.retrieval_configuration.get("index_id"))
         result = None
         if task.retrieval_mode == "hybrid":
@@ -263,15 +344,24 @@ class TaskService:
             except ValueError as exc:
                 result = AnalysisResult(status="failed", usage=Usage(), mode=task.mode, limitations=[str(exc)])
         if result is None:
-            result = runner.run(task.question, context, emit, cancelled)
+            try:
+                if task.recovery_enabled:
+                    current=signature(task,self.settings,self.db)
+                    if digest(current)!=task.recovery_config_hash:raise RecoveryRejected('recovery_configuration_changed')
+                    session=ExecutionSession(self.db,task_id,epoch,self.lease,current,seconds=self.settings.max_seconds,stopping=self.stopping.is_set)
+                    result=runner.run(task.question,context,emit,cancelled,session=session)
+                else:result = runner.run(task.question, context, emit, cancelled)
+            except WorkerPaused:
+                self._pause(task_id,runner);return
         with self.lock:
             task = self.get(task_id)
             task.status = "cancelled" if task.cancel_requested else result.status
             result.status = task.status
             task.usage = result.usage
+            task.resume_available=False;task.recovery_error=None
             if result.status == "failed":
                 task.error_code = result.limitations[0] if result.limitations else "analysis_failed"
             graph = getattr(runner, "last_view", None)
             if graph is not None:
                 graph = {**graph, "status": task.status}
-            self._save(task, "task_finished", {"status": task.status, "error_code": task.error_code, "usage": task.usage.model_dump()}, report=result, graph=graph)
+            self._save(task, "task_finished", {"status": task.status, "error_code": task.error_code, "usage": task.usage.model_dump()}, report=result, graph=graph,execution_epoch=epoch)

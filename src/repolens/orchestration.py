@@ -1,5 +1,6 @@
 import hashlib
 import json
+from contextlib import nullcontext
 from typing import Annotated, TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
@@ -13,6 +14,8 @@ from repolens.model_client import ProviderError
 from repolens.model_gateway import ModelGateway
 from repolens.models import AnalysisResult, ResearchPlan, ReviewDecision, TaskEvent
 from repolens.review import result_hash, collect_claims, validate_review, render_report
+from repolens.checkpoints import saver_for
+from repolens.execution_store import WorkerPaused
 
 
 def validate_plan(plan):
@@ -62,8 +65,8 @@ class CollaborativeRunner:
         self.last_view = None
         self.graph = None
 
-    def run(self, question, context, emit, cancelled):
-        budget = BudgetManager(self.settings)
+    def run(self, question, context, emit, cancelled, *, session=None):
+        budget = BudgetManager(self.settings,session=session)
         gateway = ModelGateway(self.model, budget, emit, cancelled, context.task_id)
         snapshot = self.registry.db.get_snapshot(context.snapshot_id)
         state = {"plan": [], "results": [], "round": 0, "reviews": [], "followups": [], "previous_evidence": [], "issues": []}
@@ -196,16 +199,28 @@ class CollaborativeRunner:
         builder.add_conditional_edges("review", route_review, ["followup", "report"])
         builder.add_edge("followup", "dispatch")
         builder.add_edge("report", END)
-        self.graph = builder.compile()
         if self.model is None:
+            self.graph = builder.compile()
             state["issues"].append("model_not_configured")
         else:
             try:
                 # Never export graph or repository data to ambient LangSmith tracing.
-                with tracing_context(enabled=False):
-                    for value in self.graph.stream(state, config={"max_concurrency": 2, "recursion_limit": self.settings.graph_recursion_limit}, stream_mode="values"):
-                        state = value
-                        publish(state)
+                with (saver_for(session) if session else nullcontext(None)) as saver,tracing_context(enabled=False):
+                    self.graph=builder.compile(checkpointer=saver)
+                    config={"max_concurrency":2,"recursion_limit":self.settings.graph_recursion_limit,**({'configurable':{'thread_id':context.task_id}} if session else {})}
+                    prior=self.graph.get_state(config) if session else None
+                    if prior and prior.created_at:state={**state,**prior.values}
+                    try:
+                        for value in self.graph.stream(None if prior and prior.created_at else state,config=config,stream_mode='values',**({'durability':'sync'} if session else {})):
+                            state=value;publish(state)
+                    except WorkerPaused:
+                        saved=self.graph.get_state(config)
+                        state={**state,**saved.values}
+                        for task in saved.tasks:
+                            if isinstance(task.result,dict) and task.result.get('results'):
+                                state['results']=merge_results(state['results'],task.result['results'])
+                        self.last_view=view(state,'partial')
+                        raise
             except GraphRecursionError:
                 state = {**state, "issues": [*state["issues"], "graph_step_limit"]}
             except Exception:

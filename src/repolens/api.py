@@ -21,6 +21,9 @@ from repolens.budget import BudgetManager
 from repolens.model_gateway import ModelGateway
 from repolens.model_client import ProviderError
 from repolens.indexing import RepositoryIndex
+from repolens.execution_store import LeaseLost
+from repolens.checkpoints import checkpoint_exists
+from repolens.recovery import saved_run
 
 
 class ImportRequest(BaseModel):
@@ -56,6 +59,11 @@ class TaskRequest(BaseModel):
 class RetrievalIndexRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class ResumeRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    idempotency_key:str=Field(min_length=1,max_length=100)
 
 
 class SearchRequest(BaseModel):
@@ -101,7 +109,11 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
     @app.exception_handler(ValueError)
     async def invalid(request, exc):
         code = str(exc)
-        return JSONResponse({"error_code": code}, status_code=409 if code in {"idempotency_conflict", "snapshot_not_ready", "retrieval_not_configured", "retrieval_index_not_ready", "rerank_not_configured", "retrieval_configuration_changed"} else 400)
+        return JSONResponse({"error_code": code}, status_code=409 if code in {"idempotency_conflict", "snapshot_not_ready", "retrieval_not_configured", "retrieval_index_not_ready", "rerank_not_configured", "retrieval_configuration_changed",'task_not_resumable','recovery_configuration_changed','recovery_snapshot_changed','recovery_budget_corrupt','time_budget_exhausted','budget_exhausted','provider_usage_exceeded_reservation'} else 400)
+
+    @app.exception_handler(LeaseLost)
+    async def stale_worker(request,exc):
+        return JSONResponse({'error_code':'worker_lease_lost'},status_code=503)
 
     @app.exception_handler(ProviderError)
     async def retrieval_provider_error(request, exc):
@@ -198,6 +210,13 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
     @app.post("/tasks/{task_id}/cancel")
     def cancel(task_id: str):
         return service.cancel(task_id)
+
+    @app.post('/tasks/{task_id}/resume',status_code=202)
+    def resume_task(task_id:str,body:ResumeRequest|None=None):
+        service.get(task_id)
+        if not saved_run(db,task_id) or not checkpoint_exists(db,task_id):raise KeyError('recovery_checkpoint_missing')
+        if body is None:return JSONResponse({'error_code':'invalid_request'},status_code=422)
+        return service.resume(task_id,body.idempotency_key)
 
     @app.get("/tasks/{task_id}/report")
     def report(task_id: str):
