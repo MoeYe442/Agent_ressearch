@@ -123,7 +123,7 @@ class RetrievalService:
                     batch.append(row);size+=len(row['content'].encode());offset+=1
                 texts=[row['content'] for row in batch]
                 bound=len(json.dumps(texts,ensure_ascii=False).encode())+1024
-                vectors=gateway.external(lambda:self.embedding.embed(texts,budget.deadline),bound,'embedding','index')
+                vectors=gateway.external(lambda:self.embedding.embed(texts,budget.deadline),bound,'embedding','index',cache_payload={'model':self.settings.embedding_model,'texts':texts,'index_id':job_id})
                 records=[]
                 for row,vector in zip(batch,vectors):
                     chunk={**row,'id':hashlib.sha256((job_id+row['id']).encode()).hexdigest(),'index_id':job_id}
@@ -152,7 +152,7 @@ class RetrievalService:
         gateway.check()
         self.embedding.validate_input([query])
         bound=len(query.encode())+1024
-        vectors=gateway.external(lambda:self.embedding.embed([query],gateway.budget.deadline),bound,'embedding',context.task_id)
+        vectors=gateway.external(lambda:self.embedding.embed([query],gateway.budget.deadline),bound,'embedding',context.task_id,cache_payload={'model':self.settings.embedding_model,'texts':[query],'index_id':job['id'],'scope':context.source_scope})
         gateway.check()
         ids=self.vectors.search(vectors[0],context.snapshot_id,job['id'],context.source_scope,20,gateway.budget.deadline)
         vector_hits=[]
@@ -192,7 +192,7 @@ class RetrievalService:
         if rerank and hits:
             self.reranker.validate_input(query,excerpts)
             bound=len(query.encode())+sum(len(text.encode()) for text in excerpts)+1024
-            order=gateway.external(lambda:self.reranker.rank(query,excerpts,gateway.budget.deadline),bound,'rerank',context.task_id,output_bound=128)
+            order=gateway.external(lambda:self.reranker.rank(query,excerpts,gateway.budget.deadline),bound,'rerank',context.task_id,output_bound=128,cache_payload={'model':self.settings.rerank_model,'query':query,'texts':excerpts,'index_id':job['id'],'scope':context.source_scope})
             hits=[hits[i] for i in order]
         gateway.check()
         return hits[:min(max(limit,1),20)]

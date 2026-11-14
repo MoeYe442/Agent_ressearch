@@ -3,7 +3,8 @@ import time
 import re
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from repolens.model_client import HTTPChatModel, ProviderError
-from repolens.models import AnalysisResult, Claim, TaskEvent, Usage
+from repolens.models import AnalysisResult, Claim, TaskEvent, Usage,ToolResult
+from repolens.execution_store import RecoveryRejected
 from repolens.budget import BudgetManager, BudgetExceeded
 from repolens.model_gateway import ModelGateway
 
@@ -88,21 +89,32 @@ class AgentRunner:
                 for call in turn.tool_calls:
                     if stopped():
                         return finish("cancelled" if cancelled() else "partial", "cancelled_or_time_limit")
-                    try:
-                        budget.reserve_tool(subtask_id)
-                    except BudgetExceeded as exc:
-                        return finish("partial", str(exc))
-                    event("tool_started", tool=call.name, arguments=call.arguments)
-                    if context.retrieval_mode == "hybrid":
-                        result = self.registry.invoke(call.name, call.arguments, context, gateway=gateway)
+                    session=budget.session
+                    key=session.cache_key('tool',{'name':call.name,'arguments':call.arguments,'call_id':call.id,'scope':context.source_scope,'subtask':subtask_id or 'single','snapshot_id':context.snapshot_id}) if session else None
+                    cached=session.get_cache('tool',key) if session else None
+                    if cached is not None:
+                        try:result=ToolResult.model_validate(cached)
+                        except ValueError:raise RecoveryRejected('recovery_tool_cache_corrupt') from None
+                        if any(not self.registry.evidence.validate_evidence(ref,context.snapshot_id) for ref in result.evidence_ids):
+                            raise RecoveryRejected('recovery_evidence_changed')
+                        event('tool_replayed',tool=call.name,**result.model_dump())
                     else:
-                        result = self.registry.invoke(call.name, call.arguments, context)
+                        try:
+                            budget.reserve_tool(subtask_id)
+                        except BudgetExceeded as exc:
+                            return finish("partial", str(exc))
+                        event("tool_started", tool=call.name, arguments=call.arguments)
+                        if context.retrieval_mode == "hybrid":
+                            result = self.registry.invoke(call.name, call.arguments, context, gateway=gateway)
+                        else:
+                            result = self.registry.invoke(call.name, call.arguments, context)
+                        if session:session.save_tool(key,result.model_dump(mode='json'))
                     if result.status == "ok":
                         observed.update(result.evidence_ids)
                     elif context.retrieval_mode == "hybrid" and call.name == "search_text":
                         retrieval_failed = True
                         limitations.append("hybrid_retrieval_failed: " + (result.error_code or "retrieval_failed"))
-                    event("tool_completed", tool=call.name, **result.model_dump())
+                    if cached is None:event("tool_completed", tool=call.name, **result.model_dump())
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": result.model_dump_json()})
                     if stopped():
                         return finish("cancelled" if cancelled() else "partial", "cancelled_or_time_limit")

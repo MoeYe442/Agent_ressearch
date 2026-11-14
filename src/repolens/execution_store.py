@@ -107,8 +107,8 @@ class ExecutionSession:
         with self.db.connect() as conn:
             conn.execute('BEGIN IMMEDIATE');self.guard(conn)
             conn.execute('UPDATE execution_runs SET budget=? WHERE task_id=?',(json.dumps(state),self.task_id))
-            if record:
-                conn.execute('INSERT OR REPLACE INTO execution_calls VALUES (?,?,?,?,?)',(record['id'],self.task_id,record.get('cache_key'),record['status'],json.dumps(record)))
+            for item in (record if isinstance(record,list) else [record] if record else []):
+                conn.execute('INSERT OR REPLACE INTO execution_calls VALUES (?,?,?,?,?)',(item['id'],self.task_id,item.get('cache_key'),item['status'],json.dumps(item)))
             if cache:
                 kind,key,value=cache
                 conn.execute('INSERT OR REPLACE INTO execution_cache VALUES (?,?,?,?)',(self.task_id,kind,key,json.dumps(value,ensure_ascii=False)))
