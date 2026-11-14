@@ -18,6 +18,7 @@ from repolens.recovery import signature,eligibility,current_usage,paused_report,
 from repolens.checkpoints import checkpoint_exists
 from repolens.single_graph import DurableSingleRunner
 from repolens.review import render_report
+from repolens.dispatch import DurableQueue
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -37,13 +38,19 @@ class TaskService:
         self.worker = None
         self.github_client_factory = github_client_factory or GitHubClient
         self.lease=WorkerLease(db,on_lost=self.stopping.set)
+        self.durable=settings.execution_mode!='embedded'
+        if self.durable:self.queue=DurableQueue(db,settings,self.lease)
 
     def start(self):
-        with self.lock:
+        if self.settings.execution_mode=='api':return
+        if self.db.backend=='postgres':
+            from repolens.postgres_checkpoints import setup_postgres
+            setup_postgres(self.db)
+        with self.lock,self.db.atomic():
             if self.worker is not None:
                 return
-            self.lease.acquire();self.lease.start_heartbeat()
-            self.retrieval.interrupt_unfinished()
+            self.lease.acquire();self.db.worker_guard=self.lease.guard;self.lease.start_heartbeat()
+            self.retrieval.interrupt_unfinished(pending=self.queue.is_pending if self.durable else lambda kind,key:False)
             # Fresh process startup is explicit failure of interrupted work, never a fake resume.
             for payload in self.db.all("tasks"):
                 task = AnalysisTask.model_validate(payload)
@@ -73,12 +80,14 @@ class TaskService:
                 except KeyError:
                     has_index = False
                 if snapshot.status == "importing" or (snapshot.status == "ready" and not has_index):
+                    if self.durable and snapshot.status=='importing' and self.queue.is_pending('import',snapshot.id):continue
                     snapshot.status, snapshot.error_code = "failed", "interrupted_import"
                     if not cleanup_import(self.settings, snapshot.id, snapshot=True, download=True):
                         snapshot.error_code = "interrupted_import_cleanup_failed"
                     self.db.put_snapshot(snapshot)
                 elif snapshot.status == "ready":
                     cleanup_import(self.settings, snapshot.id, download=True)
+            if self.durable:self.queue.abandon_claimed()
             self.worker = threading.Thread(target=self._work, name="repolens-worker", daemon=True)
             self.worker.start()
 
@@ -86,7 +95,10 @@ class TaskService:
         self.stopping.set()
         if self.worker:
             self.worker.join()  # drain/cancel active work; no old worker may publish after return
-        if self.lease.epoch:self.lease.release()
+        if self.lease.epoch:
+            self.db.worker_guard=None
+            self.lease.release()
+        if self.durable:self.queue.close()
 
     def _save(self, task, type, payload=None, report=None, graph=None,execution_epoch=None,extra_entities=None):
         task.updated_at = now()
@@ -103,7 +115,7 @@ class TaskService:
         return self.db.save_task_event(task, TaskEvent(type=type, payload=payload or {}), report=report, graph=graph,guard=guard if self.lease.epoch else None,extra_entities=extra_entities)
 
     def _pause(self,task_id,runner=None):
-        with self.lock:
+        with self.lock,self.db.atomic():
             task=self.get(task_id)
             graph=getattr(runner,'last_view',None)
             if graph is None:
@@ -119,7 +131,7 @@ class TaskService:
             self._save(task,'task_finished',{'status':task.status,'error_code':task.error_code,'resume_available':task.resume_available,'usage':task.usage.model_dump()},report=report,graph=graph,execution_epoch=task.execution_epoch)
 
     def resume(self,task_id,idempotency_key):
-        with self.lock:
+        with self.lock,self.db.atomic():
             if self.stopping.is_set():raise ValueError('service_stopping')
             task=self.get(task_id)
             try:
@@ -152,7 +164,7 @@ class TaskService:
     def _register_import(self, source, source_type, ref, idempotency_key):
         snapshot_id = uuid4().hex
         snapshot = RepositorySnapshot(id=snapshot_id, source=source, source_type=source_type, requested_ref=ref, root=self.settings.data_dir.resolve() / "snapshots" / snapshot_id)
-        with self.lock:
+        with self.lock,self.db.atomic():
             if self.stopping.is_set():
                 raise ValueError("service_stopping")
             if idempotency_key:
@@ -177,7 +189,7 @@ class TaskService:
             raise ValueError("invalid_mode")
         if retrieval_mode not in {"keyword", "hybrid"} or (rerank and retrieval_mode != "hybrid"):
             raise ValueError("invalid_retrieval_mode")
-        with self.lock:
+        with self.lock,self.db.atomic():
             if self.stopping.is_set():raise ValueError('service_stopping')
             if idempotency_key:
                 try:
@@ -197,7 +209,7 @@ class TaskService:
                 if rerank and not self.retrieval.rerank_configured:
                     raise ValueError("rerank_not_configured")
                 configuration = {**index["configuration"], "index_id": index["id"], "rerank_model": self.settings.rerank_model if rerank else None}
-            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.5-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration,recovery_enabled=True)
+            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.6-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration,recovery_enabled=True)
             task.recovery_config_hash=digest(signature(task,self.settings,self.db))
             # Single process submission lock; key, task and first event share one transaction.
             with self.db.connect() as conn:
@@ -220,7 +232,7 @@ class TaskService:
         return self.db.task_events(task_id, after_sequence)
 
     def cancel(self, task_id):
-        with self.lock:
+        with self.lock,self.db.atomic():
             task = self.get(task_id)
             if task.status=='partial' and task.resume_available:
                 task.cancel_requested=True;task.status='cancelled';task.resume_available=False
@@ -251,7 +263,7 @@ class TaskService:
             except LeaseLost:
                 self.stopping.set()
             except RecoveryRejected as exc:
-                with self.lock:
+                with self.lock,self.db.atomic():
                     task=self.get(key);task.status='failed';task.error_code=exc.code;task.resume_available=False
                     task.usage=current_usage(self.db,key)
                     report=AnalysisResult(status='failed',mode=task.mode,usage=task.usage,limitations=[exc.code])
@@ -259,7 +271,7 @@ class TaskService:
             except Exception:
                 # An individual job must not kill the queue or expose exception text/secrets.
                 if kind == "task":
-                    with self.lock:
+                    with self.lock,self.db.atomic():
                         task = self.get(key)
                         task.status = "cancelled" if task.cancel_requested else "failed"
                         task.error_code = "worker_error"
@@ -278,6 +290,7 @@ class TaskService:
 
     def _import(self, snapshot_id):
         snapshot = self.db.get_snapshot(snapshot_id)
+        if snapshot.status!='importing':return
         archive_path = None
         download_owned = False
         try:
@@ -311,7 +324,7 @@ class TaskService:
                 cleanup_import(self.settings, snapshot_id, download=True)
 
     def _execute(self, task_id):
-        with self.lock:
+        with self.lock,self.db.atomic():
             task = self.get(task_id)
             if task.status != "queued":
                 return
@@ -324,7 +337,7 @@ class TaskService:
             return (self.stopping.is_set() and not task.recovery_enabled) or self.get(task_id).cancel_requested
 
         def emit(event):
-            with self.lock:
+            with self.lock,self.db.atomic():
                 current = self.get(task_id)
                 if "usage" in event.payload:
                     usage = Usage.model_validate(event.payload["usage"])
@@ -362,7 +375,7 @@ class TaskService:
                 else:result = runner.run(task.question, context, emit, cancelled)
             except WorkerPaused:
                 self._pause(task_id,runner);return
-        with self.lock:
+        with self.lock,self.db.atomic():
             task = self.get(task_id)
             task.status = "cancelled" if task.cancel_requested else result.status
             result.status = task.status

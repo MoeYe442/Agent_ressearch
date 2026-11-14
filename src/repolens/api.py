@@ -1,4 +1,6 @@
 import asyncio
+import ipaddress
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -12,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from repolens.evidence import EvidenceStore
 from repolens.model_client import configured_model
-from repolens.storage import Database
+from repolens.storage import open_database
 from repolens.tasks import TaskService, TERMINAL
 from repolens import __version__
 from repolens.models import RepositorySnapshot, AnalysisTask, AnalysisResult
@@ -76,7 +78,8 @@ class SearchRequest(BaseModel):
 
 
 def create_app(settings, model=None, *, github_client_factory=None, retrieval_factory=None):
-    db = Database(settings.data_dir / "repolens.sqlite")
+    if settings.execution_mode=='worker':raise ValueError('worker_mode_requires_worker_entrypoint')
+    db = open_database(settings)
     service = TaskService(settings, db, model if model is not None else configured_model(settings), github_client_factory, retrieval_factory)
 
     @asynccontextmanager
@@ -91,8 +94,10 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
 
     @app.middleware("http")
     async def local_only(request, call_next):
-        if request.client and request.client.host not in {"127.0.0.1", "::1", "localhost"}:
-            return JSONResponse({"error_code": "local_access_only"}, status_code=403)
+        if request.client:
+            try:allowed=any(ipaddress.ip_address(request.client.host) in ipaddress.ip_network(network) for network in settings.client_networks)
+            except ValueError:allowed=request.client.host=='localhost'
+            if not allowed:return JSONResponse({"error_code": "local_access_only"}, status_code=403)
         origin = request.headers.get("origin")
         if request.method == "POST" and origin and origin != str(request.base_url).rstrip("/"):
             return JSONResponse({"error_code": "cross_origin_forbidden"}, status_code=403)
@@ -125,13 +130,20 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "model_configured": service.model is not None, "test_environment": settings.test_environment, "workspace_root": str(settings.workspace_root.resolve()), "version": __version__, "github_import": True, "retrieval_configured": service.retrieval.configured, "rerank_configured": service.retrieval.rerank_configured}
+        with db.connect() as conn:lease=conn.execute('SELECT expires FROM worker_lease WHERE id=1').fetchone()
+        return {"status": "ok", "model_configured": service.model is not None, "test_environment": settings.test_environment, "workspace_root": str(settings.workspace_root.resolve()), "version": __version__, "github_import": True, "retrieval_configured": service.retrieval.configured, "rerank_configured": service.retrieval.rerank_configured,'storage_backend':db.backend,'execution_mode':settings.execution_mode,'worker_ready':bool(lease and lease['expires']>time.time()),'dispatch':'database+redis-wake' if settings.redis_url.get_secret_value() and service.durable else 'database-poll' if service.durable else 'embedded','redis_degraded':getattr(service.queue,'degraded',False)}
+
+    @app.get('/ready')
+    def ready():
+        state=health()
+        return JSONResponse(state,status_code=200 if state['worker_ready'] else 503)
 
     @app.post("/repositories/{snapshot_id}/retrieval-index", status_code=202)
     def build_retrieval_index(snapshot_id: str, body: RetrievalIndexRequest):
-        job = service.retrieval.register(snapshot_id, body.idempotency_key)
-        if job["status"] == "queued":
-            service.queue.put(("retrieval", job["id"]))
+        with db.atomic():
+            job = service.retrieval.register(snapshot_id, body.idempotency_key)
+            if job["status"] == "queued":
+                service.queue.put(("retrieval", job["id"]))
         return job
 
     @app.get("/repositories/{snapshot_id}/retrieval-index")
@@ -148,7 +160,7 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
         budget = BudgetManager(settings)
         gateway = ModelGateway(None, budget, lambda event: None, service.stopping.is_set, "search")
         context = ToolContext(snapshot_id=snapshot_id, task_id="search", source_scope=body.scope)
-        configuration = {"backend": "sqlite-fts5"}
+        configuration = {"backend": "postgres-tsvector" if db.backend=='postgres' else "sqlite-fts5"}
         try:
             if body.retrieval_mode == "hybrid":
                 index = service.retrieval.ready(snapshot_id)

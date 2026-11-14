@@ -1,0 +1,14 @@
+.git
+.venv
+.superpowers
+.data
+dist
+test-results
+__pycache__
+*.egg-info
+.pytest_cache
+.env
+.env.*
+!.env.example
+AGENT.md
+tests

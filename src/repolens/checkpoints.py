@@ -29,6 +29,10 @@ class FencedSqliteSaver(SqliteSaver):
 
 @contextmanager
 def saver_for(session):
+    if session.db.backend=='postgres':
+        from repolens.postgres_checkpoints import postgres_saver_for
+        with postgres_saver_for(session) as saver:yield saver
+        return
     conn=sqlite3.connect(session.db.path,check_same_thread=False,timeout=20)
     conn.row_factory=sqlite3.Row
     try:yield FencedSqliteSaver(conn,session)
@@ -37,5 +41,7 @@ def saver_for(session):
 
 def checkpoint_exists(db,task_id):
     with db.connect() as conn:
-        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='checkpoints'").fetchone():return False
+        if db.backend=='postgres':
+            if not conn.execute("SELECT to_regclass('checkpoints') AS name").fetchone()['name']:return False
+        elif not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='checkpoints'").fetchone():return False
         return conn.execute("SELECT 1 FROM checkpoints WHERE thread_id=? AND checkpoint_ns='' LIMIT 1",(task_id,)).fetchone() is not None

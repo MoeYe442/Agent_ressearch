@@ -16,8 +16,9 @@ def signature(task,settings,db):
     source={path.relative_to(root).as_posix():hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(root.rglob('*.py'))}
     provider={name:hashlib.sha256(getattr(settings,name).encode()).hexdigest() for name in ['model_url','embedding_url','rerank_url','milvus_url']}
     # Bind every non-secret setting; paths do not alter the frozen snapshot semantics.
-    excluded={'workspace_root','data_dir',*provider}
+    excluded={'workspace_root','data_dir','execution_mode','redis_queue','client_networks',*provider}
     runtime={key:value for key,value in settings.model_dump(mode='json').items() if key not in excluded and not hasattr(getattr(settings,key),'get_secret_value')}
+    runtime['storage_backend']=db.backend
     return {'version':'recovery-v1','source':source,'provider':provider,'execution_configuration':runtime,'model':settings.model_name,'embedding_model':settings.embedding_model,'dimensions':settings.embedding_dimensions,'rerank_model':settings.rerank_model,'test_environment':settings.test_environment,'snapshot_id':task.snapshot_id,'manifest':digest(snapshot.manifest),'question':digest(task.question),'mode':task.mode,'retrieval_mode':task.retrieval_mode,'rerank':task.rerank,'retrieval_configuration':task.retrieval_configuration,'task_limits':task.budget_limits,'runtime_limits':{k:getattr(settings,k) for k in ['max_model_calls','max_tool_calls','max_tokens','max_seconds','max_output_tokens']}}
 
 

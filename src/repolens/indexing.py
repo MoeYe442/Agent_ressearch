@@ -12,15 +12,24 @@ class RepositoryIndex:
         self.db = db
         with db.connect() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS symbols (snapshot_id TEXT, path TEXT, symbol TEXT, start_line INTEGER, end_line INTEGER)")
-            try:
-                conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS text_chunks USING fts5(snapshot_id UNINDEXED, path UNINDEXED, start_line UNINDEXED, end_line UNINDEXED, content)")
-            except sqlite3.OperationalError as exc:
-                raise RuntimeError("SQLite FTS5 is required; install a Python build with FTS5 support") from exc
+            if db.backend=='postgres':
+                conn.execute('CREATE TABLE IF NOT EXISTS text_chunks (snapshot_id TEXT, path TEXT, start_line INTEGER, end_line INTEGER, content TEXT)')
+                conn.execute("CREATE INDEX IF NOT EXISTS text_chunks_search ON text_chunks USING GIN (to_tsvector('simple',content))")
+            else:
+                self._sqlite_fts(conn)
+
+    @staticmethod
+    def _sqlite_fts(conn):
+        try:
+            conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS text_chunks USING fts5(snapshot_id UNINDEXED, path UNINDEXED, start_line UNINDEXED, end_line UNINDEXED, content)")
+        except sqlite3.OperationalError as exc:
+            raise RuntimeError("SQLite FTS5 is required; install a Python build with FTS5 support") from exc
 
     def search_symbols(self, snapshot_id, query, limit=10, *, scope="all"):
         escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         with self.db.connect() as conn:
-            rows = conn.execute("SELECT path,symbol,start_line,end_line FROM symbols WHERE snapshot_id=? AND " + scope_sql(scope) + " AND symbol LIKE ? ESCAPE '\\' ORDER BY (symbol=?) DESC,path,start_line LIMIT ?", (snapshot_id, "%" + escaped + "%", query, min(max(limit, 1), 20))).fetchall()
+            like='ILIKE' if self.db.backend=='postgres' else 'LIKE'
+            rows = conn.execute("SELECT path,symbol,start_line,end_line FROM symbols WHERE snapshot_id=? AND " + scope_sql(scope) + f" AND symbol {like} ? ESCAPE '\\' ORDER BY (symbol=?) DESC,path,start_line LIMIT ?", (snapshot_id, "%" + escaped + "%", query, min(max(limit, 1), 20))).fetchall()
         return [SearchHit(**dict(row)) for row in rows]
 
     def search_text(self, snapshot_id, query, limit=10, *, scope="all"):
@@ -29,7 +38,10 @@ class RepositoryIndex:
             return []
         match = " OR ".join('"' + term.replace('"', '""') + '"' for term in terms[:20])
         with self.db.connect() as conn:
-            rows = conn.execute("SELECT path,start_line,end_line,bm25(text_chunks) AS rank FROM text_chunks WHERE text_chunks MATCH ? AND snapshot_id=? AND " + scope_sql(scope) + " ORDER BY rank,path,start_line LIMIT ?", (match, snapshot_id, min(max(limit, 1), 20))).fetchall()
+            if self.db.backend=='postgres':
+                rows=conn.execute("SELECT path,start_line,end_line,-ts_rank_cd(to_tsvector('simple',content),websearch_to_tsquery('simple',?)) AS rank FROM text_chunks WHERE to_tsvector('simple',content) @@ websearch_to_tsquery('simple',?) AND snapshot_id=? AND "+scope_sql(scope)+" ORDER BY rank,path,start_line LIMIT ?",(match,match,snapshot_id,min(max(limit,1),20))).fetchall()
+            else:
+                rows = conn.execute("SELECT path,start_line,end_line,bm25(text_chunks) AS rank FROM text_chunks WHERE text_chunks MATCH ? AND snapshot_id=? AND " + scope_sql(scope) + " ORDER BY rank,path,start_line LIMIT ?", (match, snapshot_id, min(max(limit, 1), 20))).fetchall()
         return [SearchHit(path=row["path"], start_line=int(row["start_line"]), end_line=int(row["end_line"]), score=-row["rank"]) for row in rows]
 
 

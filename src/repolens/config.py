@@ -2,12 +2,26 @@ import os
 import ipaddress
 from urllib.parse import urlsplit
 from pathlib import Path
+from typing import Literal
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
 class Settings(BaseModel):
     workspace_root: Path
     data_dir: Path
+    execution_mode: Literal['embedded','api','worker'] = 'embedded'
+    database_url: SecretStr = SecretStr('')
+    redis_url: SecretStr = SecretStr('')
+    redis_queue: str = Field(default='repolens:wake',pattern=r'^[A-Za-z0-9:_-]{1,100}$')
+    client_networks: list[str] = ['127.0.0.0/8','::1/128']
+
+    @field_validator('client_networks')
+    @classmethod
+    def validate_networks(cls,value):
+        for network in value:
+            parsed=ipaddress.ip_network(network,strict=True)
+            if parsed.prefixlen==0:raise ValueError('unrestricted_client_network')
+        return value
     max_file_bytes: int = Field(default=1024 * 1024, gt=0)
     max_text_bytes: int = Field(default=100 * 1024 * 1024, gt=0)
     max_snapshot_bytes: int = Field(default=500 * 1024 * 1024, gt=0)
@@ -63,6 +77,11 @@ class Settings(BaseModel):
         return cls(
             workspace_root=Path(os.getenv("REPOLENS_WORKSPACE", str(Path.cwd()))).resolve(),
             data_dir=Path(os.getenv("REPOLENS_DATA", str(Path.cwd() / ".data"))).resolve(),
+            execution_mode=os.getenv('REPOLENS_EXECUTION_MODE','embedded'),
+            database_url=SecretStr(os.getenv('REPOLENS_DATABASE_URL','')),
+            redis_url=SecretStr(os.getenv('REPOLENS_REDIS_URL','')),
+            redis_queue=os.getenv('REPOLENS_REDIS_QUEUE','repolens:wake'),
+            client_networks=[part.strip() for part in os.getenv('REPOLENS_CLIENT_NETWORKS','127.0.0.0/8,::1/128').split(',') if part.strip()],
             model_url=os.getenv("REPOLENS_MODEL_URL", "https://api.openai.com/v1"),
             model_name=os.getenv("REPOLENS_MODEL", ""),
             model_key=SecretStr(os.getenv("REPOLENS_API_KEY", "")),

@@ -1,0 +1,117 @@
+name: repolens
+x-app: &app
+  build: .
+  image: repolens:0.6.0
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 180s
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 512m
+  volumes:
+    - repolens-data:/var/lib/repolens
+    - ${REPOLENS_REPOSITORIES:-..}:/workspace:ro
+  environment: &environment
+    REPOLENS_WORKSPACE: /workspace
+    REPOLENS_DATA: /var/lib/repolens
+    REPOLENS_DATABASE_URL: postgresql://repolens@postgres:5432/repolens
+    PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD locally in .env}
+    REPOLENS_REDIS_URL: redis://redis:6379/0
+    REPOLENS_MODEL_URL: ${REPOLENS_MODEL_URL:-https://api.openai.com/v1}
+    REPOLENS_MODEL: ${REPOLENS_MODEL:-}
+    REPOLENS_API_KEY: ${REPOLENS_API_KEY:-}
+    REPOLENS_GITHUB_TOKEN: ${REPOLENS_GITHUB_TOKEN:-}
+    REPOLENS_MILVUS_URL: ${REPOLENS_MILVUS_URL:-}
+    REPOLENS_MILVUS_TOKEN: ${REPOLENS_MILVUS_TOKEN:-}
+    REPOLENS_MILVUS_COLLECTION: ${REPOLENS_MILVUS_COLLECTION:-repolens_chunks_v1}
+    REPOLENS_EMBEDDING_URL: ${REPOLENS_EMBEDDING_URL:-}
+    REPOLENS_EMBEDDING_MODEL: ${REPOLENS_EMBEDDING_MODEL:-}
+    REPOLENS_EMBEDDING_KEY: ${REPOLENS_EMBEDDING_KEY:-}
+    REPOLENS_EMBEDDING_DIMENSIONS: ${REPOLENS_EMBEDDING_DIMENSIONS:-768}
+    REPOLENS_RERANK_URL: ${REPOLENS_RERANK_URL:-}
+    REPOLENS_RERANK_MODEL: ${REPOLENS_RERANK_MODEL:-}
+    REPOLENS_RERANK_KEY: ${REPOLENS_RERANK_KEY:-}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks: [repolens]
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: repolens
+      POSTGRES_DB: repolens
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD locally in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [repolens]
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --save, "", --appendonly, "no", --maxmemory, 64mb, --maxmemory-policy, allkeys-lru]
+    restart: unless-stopped
+    mem_limit: 128m
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [repolens]
+  api:
+    <<: *app
+    environment:
+      <<: *environment
+      REPOLENS_EXECUTION_MODE: api
+      REPOLENS_CLIENT_NETWORKS: 127.0.0.0/8,::1/128,${REPOLENS_NETWORK_SUBNET:-172.29.37.0/24}
+    ports:
+      - 127.0.0.1:${REPOLENS_PORT:-8000}:8000
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+  worker:
+    <<: *app
+    environment:
+      <<: *environment
+      REPOLENS_EXECUTION_MODE: worker
+    command: [python, -m, repolens.worker]
+    healthcheck:
+      test: [CMD, python, -m, repolens.worker, --health]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+  migrate:
+    <<: *app
+    profiles: [migration]
+    restart: "no"
+    environment:
+      <<: *environment
+      REPOLENS_EXECUTION_MODE: api
+    volumes:
+      - repolens-data:/var/lib/repolens
+      - ${REPOLENS_MIGRATION_DIR:-./.data}:/migration:ro
+    command: [python, -m, repolens.migrate, --source-data, /migration]
+
+volumes:
+  postgres-data:
+  repolens-data:
+networks:
+  repolens:
+    ipam:
+      config:
+        - subnet: ${REPOLENS_NETWORK_SUBNET:-172.29.37.0/24}

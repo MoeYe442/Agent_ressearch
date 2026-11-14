@@ -87,9 +87,10 @@ class RetrievalService:
                 conn.execute("INSERT INTO entities VALUES ('retrieval_keys',?,?)",(idempotency_key,json.dumps({'id':job['id'],'snapshot_id':snapshot_id,'fingerprint':fingerprint})))
             return job
 
-    def interrupt_unfinished(self):
+    def interrupt_unfinished(self,pending=lambda kind,key:False):
         for job in self.db.all('retrieval_jobs'):
             if job['status'] in {'queued','building'}:
+                if job['status']=='queued' and pending('retrieval',job['id']):continue
                 job.update(status='failed',error_code='interrupted_retrieval_index')
                 self.db.put('retrieval_jobs',job['id'],job)
 
