@@ -96,6 +96,40 @@ class Runner:
         else:value=self.api.request('GET','/repositories/'+snapshot['id']+'/retrieval-index')
         if value.get('status')!='ready' or (saved and saved['index']['id']!=value.get('id')):raise ValueError('evaluation_index_not_ready_or_changed')
         return value
+    def collect_terminal(self,record):
+        # Observing/cancelling a task must not extend its original deadline.
+        # Exporting its immutable terminal artifacts is a separate read-only job.
+        deadline=time.time()+120
+        task=record['task']
+        record['report']=self.api.request('GET','/tasks/'+task['id']+'/report',optional=True,deadline=deadline)
+        record['evidence']=[]
+        if record['report']:
+            refs=sorted({ref for claim in record['report'].get('claims',[]) for ref in claim.get('evidence_ids',[])})
+            if len(refs)>1000:raise ValueError('evidence_export_limit')
+            for ref in refs:
+                if not re.fullmatch('[a-f0-9]{64}',ref):raise ValueError('invalid_evidence_identifier')
+                record['evidence'].append(self.api.request('GET','/evidence/'+ref,deadline=deadline))
+        record['artifact_collected_at']=utcnow()
+    def recollect_terminal(self,spec,record):
+        # This path never submits, resumes or cancels an analysis. A new artifact
+        # hash invalidates old human reviews, but the measured task stays fixed.
+        self.check_configuration()
+        current=self.api.request('GET','/tasks/'+record['task']['id'])
+        if current.get('status') not in TERMINAL or any(current.get(key)!=record['task'].get(key) for key in ['status','attempt','execution_epoch','model_identifier','budget_limits','usage']):raise RunInterrupted('measured_task_changed_cannot_recollect')
+        record['artifact_error']=None;record['artifact_recollections']=record.get('artifact_recollections',0)+1
+        try:
+            self.collect_terminal(record);self.check_configuration()
+            record['error_code']=record['task'].get('error_code')
+        except (RunInterrupted,ValueError,KeyError,TypeError):record['artifact_error']='terminal_artifact_recollection_failed'
+        attempt=optional_artifact(self.files,'attempts/'+spec['key']+'.json')
+        if attempt:record['elapsed_ms']=round(max(0,time.time()-attempt['started'])*1000,2)
+        self.files.write('rows/'+spec['key']+'.json',record)
+    def save_record(self,spec,record,attempt):
+        record['elapsed_ms']=round(max(0,time.time()-attempt['started'])*1000,2) if attempt else None
+        try:self.files.write('rows/'+spec['key']+'.json',record,exclusive=True)
+        except ValueError:
+            record.update(report=None,evidence=[],artifact_error='result_size_limit')
+            self.files.write('rows/'+spec['key']+'.json',record,exclusive=True)
     def cell(self,spec):
         case=next(case for case in self.plan.suite.cases if case.id==spec['case_id'])
         repo=next(repo for repo in self.plan.suite.repositories if repo.id==case.repository)
@@ -134,27 +168,23 @@ class Runner:
                     break
                 time.sleep(.25);task=self.api.request('GET','/tasks/'+task['id'])
             record['task']=task
+            record['error_code']=task.get('error_code')
+            record['terminal_observed_at']=utcnow()
             record['execution_status']='timeout' if attempt.get('phase')=='cancel_pending' else task['status']
-            report=self.api.request('GET','/tasks/'+task['id']+'/report',optional=True,deadline=deadline)
-            record['report']=report
-            if report:
-                refs=sorted({ref for claim in report.get('claims',[]) for ref in claim.get('evidence_ids',[])})
-                if len(refs)>1000:raise ValueError('evidence_export_limit')
-                for ref in refs:
-                    if not re.fullmatch('[a-f0-9]{64}',ref):raise ValueError('invalid_evidence_identifier')
-                    record['evidence'].append(self.api.request('GET','/evidence/'+ref,deadline=deadline))
+            self.collect_terminal(record)
             self.check_configuration()
-        except RunInterrupted:raise
+        except RunInterrupted as exc:
+            if record['task'] is not None and record['task'].get('status') in TERMINAL:
+                record['artifact_error']='terminal_artifact_export_interrupted'
+                record['error_code']=str(exc)
+                self.save_record(spec,record,attempt)
+            raise
         except (ValueError,KeyError,TypeError) as exc:
             if attempt and attempt.get('phase') in {'submitting','observing','cancel_pending'} and record['task'] is None:raise RunInterrupted('pending_original_task_requires_reconciliation') from None
             code=str(exc) if isinstance(exc,ValueError) and re.fullmatch(r'[a-z0-9_]+',str(exc)) else 'evaluation_artifact_error'
             record['error_code']=code
             if record['task'] is not None:record['artifact_error']=code
-        record['elapsed_ms']=round(max(0,time.time()-attempt['started'])*1000,2) if attempt else None
-        try:self.files.write('rows/'+spec['key']+'.json',record,exclusive=True)
-        except ValueError:
-            record.update(report=None,evidence=[],artifact_error='result_size_limit')
-            self.files.write('rows/'+spec['key']+'.json',record,exclusive=True)
+        self.save_record(spec,record,attempt)
     def run(self):
         try:
             with runner_lock(self.files):
@@ -163,6 +193,7 @@ class Runner:
                     if self.files.path('rows/'+spec['key']+'.json').exists():
                         previous=self.files.read('rows/'+spec['key']+'.json')
                         if previous.get('run_id')!=self.plan.run_id or previous.get('plan_hash')!=self.plan_hash or any(previous.get(key)!=value for key,value in spec.items()):raise ValueError('stale_result_record')
+                        if previous.get('artifact_error') and previous.get('task') and previous['task'].get('status') in TERMINAL:self.recollect_terminal(spec,previous)
                         continue
                     self.cell(spec)
         finally:self.api.close()

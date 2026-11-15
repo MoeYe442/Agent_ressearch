@@ -1,0 +1,73 @@
+{
+  "version": "0.8.0",
+  "checks": [
+    {
+      "command": [
+        "D:\\code\\Agent\\.venv\\Scripts\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "src",
+        "eval"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "D:\\code\\Agent\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "node",
+        "--check",
+        "src/repolens/static/workspace.js"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "docker",
+        "compose",
+        "--profile",
+        "browser",
+        "--profile",
+        "migration",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "jinja_templates_compiled": 1,
+  "catalog_schema_valid": true,
+  "catalog": {
+    "repositories": 3,
+    "cases": 30,
+    "facts": 60,
+    "annotation_status": "draft_needs_independent_review",
+    "per_repository": {
+      "flask": 10,
+      "httpx": 10,
+      "click": 10
+    }
+  },
+  "test_runs": false,
+  "benchmark_runs": false,
+  "model_calls": false,
+  "services_or_containers_started": false,
+  "human_quality_review_performed": false,
+  "runtime_acceptance": "not performed"
+}

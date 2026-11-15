@@ -41,7 +41,7 @@ def inspect_record(plan,spec,record,context):
         if item.get('snapshot_id')!=snapshot.get('id') or item.get('commit_sha')!=repo.commit or item.get('content_hash')!=checksum:raise ValueError('evidence_snapshot_or_hash_mismatch')
         expected=hashlib.sha256(f"{item['snapshot_id']}:{item.get('path')}:{start}:{end}:{checksum}".encode()).hexdigest()
         if item.get('id')!=expected:raise ValueError('evidence_identifier_mismatch')
-    claims=[];citations=[]
+    claims=[];citations=[];evidence_complete=not bool(record.get('artifact_error'))
     report=record.get('report')
     if report:
         if not isinstance(report,dict) or not isinstance(report.get('claims'),list):raise ValueError('invalid_report')
@@ -49,14 +49,17 @@ def inspect_record(plan,spec,record,context):
         for index,claim in enumerate(report['claims']):
             if not isinstance(claim,dict) or not isinstance(claim.get('text'),str) or not isinstance(claim.get('evidence_ids'),list):raise ValueError('invalid_claim')
             refs=claim['evidence_ids']
-            if not refs or len(set(refs))!=len(refs) or any(ref not in by_id for ref in refs):raise ValueError('claim_reference_invalid')
+            if not refs or len(set(refs))!=len(refs):raise ValueError('claim_reference_invalid')
+            if any(ref not in by_id for ref in refs):
+                if not record.get('artifact_error'):raise ValueError('claim_reference_invalid')
+                evidence_complete=False
             key=digest([index,claim['text'],refs])[:24]
             claims.append({'claim_key':key,'text':claim['text'],'evidence_ids':refs})
             citations.extend({'citation_key':key+':'+ref,'claim_key':key,'evidence_id':ref} for ref in refs)
-        if set(by_id)!={ref for claim in claims for ref in claim['evidence_ids']}:raise ValueError('uncited_evidence_record')
+        if not set(by_id)<={ref for claim in claims for ref in claim['evidence_ids']}:raise ValueError('uncited_evidence_record')
     elif record['execution_status'] in {'succeeded','partial'} and not record.get('artifact_error'):raise ValueError('completed_report_missing')
     matches={fact.id:[item['id'] for item in evidence if any(item.get('path')==anchor.path and item['start_line']<=anchor.end_line and item['end_line']>=anchor.start_line for anchor in fact.evidence)] for fact in case.facts}
-    return {'case':case,'evidence':by_id,'claims':claims,'citations':citations,'fact_candidates':matches,'structure_pass':bool(claims) and all(matches.values()) and not record.get('artifact_error')}
+    return {'case':case,'evidence':by_id,'claims':claims,'citations':citations,'fact_candidates':matches,'evidence_complete':evidence_complete,'structure_pass':bool(claims) and all(matches.values()) and evidence_complete}
 
 
 def template(plan,spec,record,inspection):

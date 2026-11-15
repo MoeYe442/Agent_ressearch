@@ -46,3 +46,9 @@ V2.1 最终独立审查修复后：**292 passed，273.96s**，含36项浏览器�
 ## V3.2 网页资料与只读 MCP（2026-11-15）
 
 版本0.7.0提供明确允许站点的公网HTTPS采集、固定段落证据、任务附件/恢复校验、可选断网Playwright侧车，以及复用相同工具校验的MCP stdio。一次静态全分支审查的两项重要问题已修复，一项标题显示轻微问题暂缓。仍按用户要求只编译：Python/Jinja、node语法、pipcheck和Compose browser/migration配置；没有运行测试、网页采集、MCP会话、浏览器/容器或真实模型。实际运行效果未验收，详见docs/web-documents-mcp.md、docs/web-mcp-execution.md和docs/results/web-mcp-compile.json。
+
+## V4 评测与展示增量（2026-11-15）
+
+版本0.8.0新增3个公开仓库固定commit、30题/60事实的标注草案，显式固定矩阵运行器、人工评分绑定及JSON/CSV/Markdown/HTML重算报告，另附演示、架构与简历素材。仅通过Python/Jinja编译、题集schema、JavaScript语法、pipcheck和Compose静态配置检查；没有测试、评测、模型调用或服务启动，也未录制视频。源码只读查证不等于独立人工标注，所有真实效果指标仍待测。
+
+一次最终静态审查的两项重要问题及重新分级的空白问题已修复并重新编译：保留不完整导出的已知终态/用量、独立限时只读重收集原终态工件、冻结前规范化问题。两个异常输入/字段命名轻微问题暂缓；实际计费/幂等/文件锁/效果仍待运行验收。见docs/evaluation.md、docs/v4-execution.md和docs/results/v4-compile.json。

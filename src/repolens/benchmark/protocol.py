@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 from typing import Literal
 from urllib.parse import urlsplit
 from uuid import uuid4
-from pydantic import BaseModel,ConfigDict,Field,model_validator
+from pydantic import BaseModel,ConfigDict,Field,model_validator,field_validator
 
 CONFIGS={'single_keyword':('single','keyword',False),'collaborative_keyword':('collaborative','keyword',False),'collaborative_hybrid':('collaborative','hybrid',False),'collaborative_hybrid_rerank':('collaborative','hybrid',True)}
 CONFIGURATION=Literal['single_keyword','collaborative_keyword','collaborative_hybrid','collaborative_hybrid_rerank']
@@ -57,6 +57,12 @@ class Case(Strict):
     question:str=Field(min_length=1,max_length=10000)
     facts:list[Fact]=Field(min_length=1,max_length=20)
     review_rule:str=Field(min_length=1,max_length=2000)
+    @field_validator('question')
+    @classmethod
+    def canonical_question(cls,value):
+        value=value.strip()
+        if not value:raise ValueError('nonempty_question_required')
+        return value
 
 
 class Suite(Strict):

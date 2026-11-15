@@ -1,0 +1,27 @@
+{
+  "version": "0.8.0",
+  "delivery": "evaluation_and_showcase_infrastructure",
+  "catalog": {
+    "repositories": 3,
+    "cases": 30,
+    "facts": 60,
+    "annotation_status": "draft_needs_independent_review",
+    "reserved_repository": "click",
+    "author_blind_claim": false
+  },
+  "benchmark_run_id": null,
+  "benchmark_executed": false,
+  "human_quality_review_performed": false,
+  "video_recorded": false,
+  "runtime_acceptance": "not performed",
+  "measured_metrics": {
+    "quality_completion_rate": null,
+    "execution_completion_rate": null,
+    "citation_accuracy": null,
+    "median_latency_ms": null,
+    "p95_latency_ms": null,
+    "quality_improvement_percentage_points": null,
+    "monetary_cost": null
+  },
+  "note": "This is a delivery status, not an experimental result. Source annotation was static; no tests, evaluations, providers or services ran."
+}
