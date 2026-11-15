@@ -1,8 +1,8 @@
-# RepoLens V3.2 · 网页资料与 MCP
+# RepoLens V4.0 · 可复现评测与展示
 
 Agent_ressearch：基于固定快照和可复查引用的开源项目研读平台。
 
-本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.7.0；新增用户指定网页、固定段落引用与只读MCP stdio。仍按要求只编译，不运行测试或服务，运行验收尚未进行。见[网页与MCP说明](docs/web-documents-mcp.md)及[工程化说明](docs/infrastructure.md)。
+本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.8.0；新增固定commit的30题标注草案、显式评测CLI、人工评分绑定与报告导出，另附演示/简历素材。仍按要求只编译，没有运行测试、评测或服务，真实指标尚未取得。见[评测说明](docs/evaluation.md)、[网页与MCP](docs/web-documents-mcp.md)及[工程化](docs/infrastructure.md)。
 
 ## Windows PowerShell 启动
 
@@ -106,3 +106,11 @@ API 示例：`POST /repositories` JSON 为 `{"github_url":"https://github.com/pa
 ## V3.2 网页与 MCP
 
 网页采集默认关闭，需显式配置`REPOLENS_DOCUMENT_HOSTS`精确允许站点。页面填写URL后先采集正文，再绑定到调查；工具只读取已保存内容，不会自主浏览。可选断网Playwright侧车以`docker compose --profile browser up -d --build`部署；原生Windows或渲染不可用时保留静态正文并标明降级。MCP入口为`python -m repolens.mcp_server --snapshot SNAPSHOT_ID`，只提供当前快照的读取工具，不运行Shell、模型或新网页采集。详细边界、附件参数和客户端配置见[网页与MCP操作说明](docs/web-documents-mcp.md)。
+
+## V4 评测与展示
+
+`eval/benchmark-v1.json`锁定Flask、HTTPX、Click三个公开仓库commit，各10题，包含架构/实现/文档对照/证据不足。题目标注仍需独立人工复核；Click为预留分区，不是作者盲测。
+
+`python -m repolens.evaluate plan`冻结配置和重复次数，不联网；`run --execute`才会提交现有API并可能产生模型费用。`review-template`生成人工事实/结论/引用裁决包，`report`只从本地原始工件重算JSON/CSV/Markdown/HTML。默认development两配置三次为120个调查；先用`--case-id`创建单题开发计划。
+
+完整流程见[评测协议](docs/evaluation.md)，演示分镜见[demo.md](docs/demo.md)，技术取舍见[showcase.md](docs/showcase.md)，诚实的简历素材见[resume.md](docs/resume.md)。本轮未执行上述评测、没有录制视频，不填写质量或费用提升；无检索直接回答与压缩消融基线仍未实现。

@@ -1,0 +1,1082 @@
+{
+  "schema_version": 1,
+  "id": "repolens-public-v1",
+  "annotation_status": "draft_needs_independent_review",
+  "annotation_reviewer": null,
+  "repositories": [
+    {
+      "id": "flask",
+      "url": "https://github.com/pallets/flask",
+      "commit": "2c1b30d0503cfb064f1cb252e6614a06915a362a",
+      "partition": "development",
+      "sources": {
+        "src/flask/app.py": {
+          "sha256": "5c6aa0151b0b8018732280761d27eda0c4c83378630e21faadd57b73783720a7",
+          "git_blob": "1232b03dd40bb45aa0f7448ee0ba780d21aa3778",
+          "lines": 1536
+        },
+        "src/flask/sansio/app.py": {
+          "sha256": "e446f1c0739c86072966a4326a503dbf20c1a299273af0e0e815705c5c850f6b",
+          "git_blob": "a2592fe4bd3751f1f15f4f63532dc24ecb8884b2",
+          "lines": 964
+        },
+        "src/flask/ctx.py": {
+          "sha256": "b0f2b36a1aad831692eced32f44fcdcd424d503c930fa3381a40eb56ed9f5376",
+          "git_blob": "222e818e086bc319e07944d79961844e16710cc6",
+          "lines": 449
+        },
+        "src/flask/sessions.py": {
+          "sha256": "76ebd81a608687f1f772032ecb6a1e4a3ac2b02bcbca517808128e5e9374426b",
+          "git_blob": "0a357d9e44115c5537be86227178e18132af94e7",
+          "lines": 399
+        }
+      }
+    },
+    {
+      "id": "httpx",
+      "url": "https://github.com/encode/httpx",
+      "commit": "26d48e0634e6ee9cdc0533996db289ce4b430177",
+      "partition": "development",
+      "sources": {
+        "httpx/_client.py": {
+          "sha256": "c43f941baefe58c91e96d00039e1868fe719d91453026d7db1647194563bff8d",
+          "git_blob": "2249231f8c3b912c731ff160344d3672e2f11738",
+          "lines": 2019
+        },
+        "httpx/_config.py": {
+          "sha256": "a4fa7653ec2271f70ab05f8a6111352d876dddee84446788a1767c1a3a372d67",
+          "git_blob": "467a6c90ae269babe3af7963d9d7c78b9f012268",
+          "lines": 248
+        }
+      }
+    },
+    {
+      "id": "click",
+      "url": "https://github.com/pallets/click",
+      "commit": "fd183b2ced1cb5857784fe7fb22f4982f671f098",
+      "partition": "reserved",
+      "sources": {
+        "src/click/core.py": {
+          "sha256": "814869352f5c14119d1175dd8ac1951be791bc67f8f514f215a831ba5ab0745c",
+          "git_blob": "f57ada62b195fa533387b5d06b366b17edb7d2f4",
+          "lines": 3135
+        },
+        "src/click/types.py": {
+          "sha256": "2814d1c4ddbc711d5567999bf62257f7c3104b0fe9f521b3963a9f108f33e53c",
+          "git_blob": "684cb3b1e6107bada194d18968de69a7f383a2a0",
+          "lines": 1165
+        }
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "flask-wsgi",
+      "repository": "flask",
+      "category": "architecture",
+      "question": "一次WSGI请求如何进入分发，并保证请求上下文清理？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "wsgi_app创建并push请求上下文，然后调用full_dispatch_request。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.wsgi_app",
+              "start_line": 1479,
+              "end_line": 1527
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "finally中调用ctx.pop(error)，分发/响应异常不能跳过该清理路径。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.wsgi_app",
+              "start_line": 1479,
+              "end_line": 1527
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-dispatch",
+      "repository": "flask",
+      "category": "architecture",
+      "question": "请求预处理、视图分发与响应收尾按什么顺序执行？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "full_dispatch_request先preprocess_request，只有返回None才dispatch_request。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.full_dispatch_request",
+              "start_line": 904,
+              "end_line": 920
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "异常交给handle_user_exception，随后通过finalize_request收尾。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.full_dispatch_request",
+              "start_line": 904,
+              "end_line": 920
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-blueprint",
+      "repository": "flask",
+      "category": "architecture",
+      "question": "Blueprint注册入口位于哪里，真正注册工作由谁完成？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "App.register_blueprint为应用上的注册入口。",
+          "evidence": [
+            {
+              "path": "src/flask/sansio/app.py",
+              "symbol": "App.register_blueprint",
+              "start_line": 570,
+              "end_line": 595
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "入口委托blueprint.register(self, options)，不能把此包装方法误说成全部注册细节。",
+          "evidence": [
+            {
+              "path": "src/flask/sansio/app.py",
+              "symbol": "App.register_blueprint",
+              "start_line": 570,
+              "end_line": 595
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-route",
+      "repository": "flask",
+      "category": "implementation",
+      "question": "URL规则、默认methods与endpoint到视图函数映射如何登记？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "未指定methods时取view_func.methods或默认GET，并规范为大写集合。",
+          "evidence": [
+            {
+              "path": "src/flask/sansio/app.py",
+              "symbol": "App.add_url_rule",
+              "start_line": 605,
+              "end_line": 661
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "规则加入url_map，非空视图加入view_functions；覆盖不同视图的同名endpoint会拒绝。",
+          "evidence": [
+            {
+              "path": "src/flask/sansio/app.py",
+              "symbol": "App.add_url_rule",
+              "start_line": 605,
+              "end_line": 661
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-options",
+      "repository": "flask",
+      "category": "implementation",
+      "question": "默认OPTIONS响应何时由框架提供，而不是调用用户视图？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "add_url_rule按配置与显式开关计算provide_automatic_options并为规则设置标记。",
+          "evidence": [
+            {
+              "path": "src/flask/sansio/app.py",
+              "symbol": "App.add_url_rule",
+              "start_line": 605,
+              "end_line": 661
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "dispatch_request在规则标记启用且请求方法为OPTIONS时返回默认响应。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.dispatch_request",
+              "start_line": 879,
+              "end_line": 902
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-response",
+      "repository": "flask",
+      "category": "implementation",
+      "question": "视图返回二元组与None时，make_response如何处理？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "二元组第二项为Headers/dict/tuple/list时视作headers，否则视作status。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.make_response",
+              "start_line": 1129,
+              "end_line": 1269
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "返回值为None会抛出TypeError，不能称为自动生成空成功响应。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.make_response",
+              "start_line": 1129,
+              "end_line": 1269
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-session",
+      "repository": "flask",
+      "category": "implementation",
+      "question": "默认安全Cookie session读取无cookie、坏签名与正常签名时分别怎样处理？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "open_session从请求cookie读取并由签名serializer.loads和max_age解析。",
+          "evidence": [
+            {
+              "path": "src/flask/sessions.py",
+              "symbol": "SecureCookieSessionInterface.open_session",
+              "start_line": 337,
+              "end_line": 349
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "没有cookie或BadSignature返回空session，不能据此声称使用服务器数据库会话存储。",
+          "evidence": [
+            {
+              "path": "src/flask/sessions.py",
+              "symbol": "SecureCookieSessionInterface.open_session",
+              "start_line": 337,
+              "end_line": 349
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-resource-doc",
+      "repository": "flask",
+      "category": "docs_code",
+      "question": "open_resource文档声称只读；实现允许哪些mode，实际路径相对哪里？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "只接受r、rt、rb，其他mode抛ValueError，与只读说明一致。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.open_resource",
+              "start_line": 330,
+              "end_line": 361
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "资源路径由root_path与resource拼接，文本与二进制分支分别打开。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.open_resource",
+              "start_line": 330,
+              "end_line": 361
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-async-doc",
+      "repository": "flask",
+      "category": "docs_code",
+      "question": "ensure_sync对同步/异步视图的文档说明与实现是否一致？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "iscoroutinefunction为真时经async_to_sync包装。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.ensure_sync",
+              "start_line": 966,
+              "end_line": 978
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "普通同步函数原样返回，不能把它解释成所有视图都运行于新事件循环。",
+          "evidence": [
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.ensure_sync",
+              "start_line": 966,
+              "end_line": 978
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "flask-insufficient",
+      "repository": "flask",
+      "category": "insufficient_evidence",
+      "question": "仅凭请求上下文push/pop和WSGI入口，能否证明Flask提供跨进程任务断点恢复？说明可知与未知。",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "这些片段显示的是请求上下文进入/退出与请求分发。",
+          "evidence": [
+            {
+              "path": "src/flask/ctx.py",
+              "symbol": "RequestContext.push",
+              "start_line": 367,
+              "end_line": 394
+            },
+            {
+              "path": "src/flask/app.py",
+              "symbol": "Flask.wsgi_app",
+              "start_line": 1479,
+              "end_line": 1527
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "不能把上下文恢复/清理等同持久任务检查点；说明静态核查范围，不凭这些片段断言全仓库所有恢复能力存在或不存在。",
+          "evidence": [
+            {
+              "path": "src/flask/ctx.py",
+              "symbol": "RequestContext.pop",
+              "start_line": 396,
+              "end_line": 431
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-build",
+      "repository": "httpx",
+      "category": "architecture",
+      "question": "Client.build_request如何合并客户端配置并传入超时信息？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "URL、headers、cookies与params分别经合并方法构造请求。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient.build_request",
+              "start_line": 340,
+              "end_line": 389
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "extensions尚无timeout时将客户端默认或显式Timeout写入extensions，不覆盖已有timeout。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient.build_request",
+              "start_line": 340,
+              "end_line": 389
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-send",
+      "repository": "httpx",
+      "category": "architecture",
+      "question": "Client.send对已关闭客户端和非流式响应的处理链路是什么？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "客户端状态CLOSED时拒绝发送，正常发送会设为OPENED并进入认证/重定向处理。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client.send",
+              "start_line": 879,
+              "end_line": 928
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "非stream会读取响应；读取阶段异常会关闭response后重新抛出。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client.send",
+              "start_line": 879,
+              "end_line": 928
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-lifecycle",
+      "repository": "httpx",
+      "category": "architecture",
+      "question": "同步Client关闭后如何释放默认和挂载transport，并避免重复关闭？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "close仅在状态非CLOSED时切换为CLOSED并关闭默认transport。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client.close",
+              "start_line": 1263,
+              "end_line": 1273
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "遍历mounts并关闭非None transport；该方法不代表保存跨进程连接状态。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client.close",
+              "start_line": 1263,
+              "end_line": 1273
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-redirect-method",
+      "repository": "httpx",
+      "category": "implementation",
+      "question": "301、302、303重定向如何影响请求方法，HEAD有什么例外？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "303和302在原方法不是HEAD时改成GET。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient._redirect_method",
+              "start_line": 494,
+              "end_line": 515
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "301只把POST改成GET，不能声称所有重定向或全部方法都会改写。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient._redirect_method",
+              "start_line": 494,
+              "end_line": 515
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-redirect-headers",
+      "repository": "httpx",
+      "category": "implementation",
+      "question": "跨origin重定向时认证头和Cookie头如何处理？说明安全例外。",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "origin改变时通常移除Authorization，但直接HTTP到同目标HTTPS升级有专门例外，并更新Host。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient._redirect_headers",
+              "start_line": 546,
+              "end_line": 571
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "移除原Cookie头，后续基于客户端cookie存储构造；改GET时移除body相关长度/传输头。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient._redirect_headers",
+              "start_line": 546,
+              "end_line": 571
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-redirect-limit",
+      "repository": "httpx",
+      "category": "implementation",
+      "question": "不跟随重定向时返回什么，重定向循环与次数上限在哪里控制？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "_send_handling_redirects循环维护history并在超过max_redirects时抛TooManyRedirects。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client._send_handling_redirects",
+              "start_line": 964,
+              "end_line": 999
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "follow_redirects为false时设置response.next_request并返回，不继续发送下一跳。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client._send_handling_redirects",
+              "start_line": 964,
+              "end_line": 999
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-limits",
+      "repository": "httpx",
+      "category": "implementation",
+      "question": "Limits自身是否创建连接池？三个限制值保存在哪里？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Limits.__init__保存max_connections、max_keepalive_connections及keepalive_expiry。",
+          "evidence": [
+            {
+              "path": "httpx/_config.py",
+              "symbol": "Limits.__init__",
+              "start_line": 173,
+              "end_line": 182
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "该初始化片段仅是配置容器，不能把配置赋值描述为此处已执行网络建连或池回收。",
+          "evidence": [
+            {
+              "path": "httpx/_config.py",
+              "symbol": "Limits.__init__",
+              "start_line": 173,
+              "end_line": 182
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-url-doc",
+      "repository": "httpx",
+      "category": "docs_code",
+      "question": "_merge_url的相对路径合并说明与实现是否遵循浏览器根路径替换规则？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "相对URL将客户端base_url.raw_path与去掉前导斜线的请求路径拼接。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient._merge_url",
+              "start_line": 391,
+              "end_line": 411
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "不是把以斜线开头的相对路径替换为origin根路径；绝对URL则直接使用。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "BaseClient._merge_url",
+              "start_line": 391,
+              "end_line": 411
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-timeout-doc",
+      "repository": "httpx",
+      "category": "docs_code",
+      "question": "Timeout文档中的默认值、四个超时维度和覆盖规则如何体现在初始化实现？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "存在connect/read/write/pool四个独立值；可从Timeout或tuple复制相应字段。",
+          "evidence": [
+            {
+              "path": "httpx/_config.py",
+              "symbol": "Timeout.__init__",
+              "start_line": 86,
+              "end_line": 130
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "提供默认timeout时只填未显式设置的维度，不把默认值无条件覆盖到所有显式参数。",
+          "evidence": [
+            {
+              "path": "httpx/_config.py",
+              "symbol": "Timeout.__init__",
+              "start_line": 86,
+              "end_line": 130
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "httpx-insufficient",
+      "repository": "httpx",
+      "category": "insufficient_evidence",
+      "question": "仅看Client.send和close，是否能认定HTTPX自带跨进程事务exactly-once保证？给出证据范围。",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "可见片段处理客户端状态、请求发送、响应读取与transport关闭。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client.send",
+              "start_line": 879,
+              "end_line": 928
+            },
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client.close",
+              "start_line": 1263,
+              "end_line": 1273
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "这些片段不足以证明跨进程业务事务exactly-once；区分客户端调用生命周期与服务端幂等/持久化保证。",
+          "evidence": [
+            {
+              "path": "httpx/_client.py",
+              "symbol": "Client.send",
+              "start_line": 879,
+              "end_line": 928
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-command",
+      "repository": "click",
+      "category": "architecture",
+      "question": "Command.invoke如何把解析结果传给回调，Context.invoke负责什么？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Command.invoke通过ctx.invoke(callback, **ctx.params)执行非空回调。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Command.invoke",
+              "start_line": 1212,
+              "end_line": 1226
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "Context.invoke区分Command与普通callable，为Command建立子上下文、补缺省参数后执行回调。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Context.invoke",
+              "start_line": 748,
+              "end_line": 794
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-group",
+      "repository": "click",
+      "category": "architecture",
+      "question": "Group.invoke如何区分普通子命令和chain模式，并处理结果回调？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "非chain模式解析单个子命令，在子上下文中调用该命令。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Group.invoke",
+              "start_line": 1796,
+              "end_line": 1862
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "chain模式累积多个子命令结果，_process_result按需调用result_callback。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Group.invoke",
+              "start_line": 1796,
+              "end_line": 1862
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-parse",
+      "repository": "click",
+      "category": "architecture",
+      "question": "命令参数解析怎样进入Parameter处理，额外参数何时被拒绝？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Command.parse_args调用parser.parse_args并按处理顺序调用param.handle_parse_result。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Command.parse_args",
+              "start_line": 1189,
+              "end_line": 1210
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "有剩余参数且不允许extra args、非resilient_parsing时通过ctx.fail拒绝。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Command.parse_args",
+              "start_line": 1189,
+              "end_line": 1210
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-choice",
+      "repository": "click",
+      "category": "implementation",
+      "question": "Choice如何规范化大小写，返回值是否就是规范化后的字符串？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "normalize_choice使用enum成员名或str，可应用ctx token_normalize_func及casefold。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "Choice.normalize_choice",
+              "start_line": 288,
+              "end_line": 306
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "convert比较规范化值后返回原始choice对象，找不到时调用fail。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "Choice.convert",
+              "start_line": 336,
+              "end_line": 358
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-bool",
+      "repository": "click",
+      "category": "implementation",
+      "question": "BoolParamType接受哪些典型文本值，无效输入如何处理？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "strip/lower后接受1/true/t/yes/y/on和0/false/f/no/n/off等集合。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "BoolParamType.convert",
+              "start_line": 664,
+              "end_line": 680
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "布尔值直接返回bool，无效文本走fail而非静默当作false。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "BoolParamType.convert",
+              "start_line": 664,
+              "end_line": 680
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-range",
+      "repository": "click",
+      "category": "implementation",
+      "question": "数值范围的开闭边界和clamp模式怎样处理越界值？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "比较操作随min_open/max_open选择le/lt或ge/gt，区别开闭边界。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "_NumberRangeBase.convert",
+              "start_line": 516,
+              "end_line": 545
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "clamp启用时调用_clamp，否则越界调用fail，合法值原样返回。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "_NumberRangeBase.convert",
+              "start_line": 516,
+              "end_line": 545
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-tuple",
+      "repository": "click",
+      "category": "implementation",
+      "question": "Tuple参数类型如何检查元素数量并逐元素转换？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "输入长度必须与self.types长度一致，不一致调用fail。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "Tuple.convert",
+              "start_line": 1046,
+              "end_line": 1065
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "使用对应子类型转换每一项，返回tuple而非单一字符串。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "Tuple.convert",
+              "start_line": 1046,
+              "end_line": 1065
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-file-doc",
+      "repository": "click",
+      "category": "docs_code",
+      "question": "File类型文档的资源释放承诺在有Context与无Context时有何不同？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "惰性打开时创建LazyFile，有ctx则登记close_intelligently清理。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "File.convert",
+              "start_line": 771,
+              "end_line": 812
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "普通打开有ctx则登记关闭或刷新；无ctx不能假定框架自动替调用者收尾。",
+          "evidence": [
+            {
+              "path": "src/click/types.py",
+              "symbol": "File.convert",
+              "start_line": 771,
+              "end_line": 812
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-main-doc",
+      "repository": "click",
+      "category": "docs_code",
+      "question": "Command.main文档所说standalone_mode关闭后，返回值与退出处理如何变化？",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "invoke完成且standalone_mode为false时直接返回rv。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Command.main",
+              "start_line": 1295,
+              "end_line": 1406
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "standalone模式按Click异常/退出逻辑处理，不能一概声称回调返回数字直接决定进程退出码。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Command.main",
+              "start_line": 1295,
+              "end_line": 1406
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    },
+    {
+      "id": "click-insufficient",
+      "repository": "click",
+      "category": "insufficient_evidence",
+      "question": "看到Group.chain与Context.invoke就能证明Click在并行执行子命令吗？解释证据局限。",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Group.invoke可见的是子命令上下文与调用/结果处理流程。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Group.invoke",
+              "start_line": 1796,
+              "end_line": 1862
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "text": "chain名称和逐个invoke不足以证明并行调度；说明所检查片段，不推断未核查插件或外部执行机制。",
+          "evidence": [
+            {
+              "path": "src/click/core.py",
+              "symbol": "Group.invoke",
+              "start_line": 1796,
+              "end_line": 1862
+            },
+            {
+              "path": "src/click/core.py",
+              "symbol": "Context.invoke",
+              "start_line": 748,
+              "end_line": 794
+            }
+          ]
+        }
+      ],
+      "review_rule": "独立人工核对固定commit中引用是否支持全部关键事实及所有额外结论；代码事实须实现证据，不能只引用名称或docstring。缺证据时明确检索范围与未知，不把结构命中或模型自评当质量通过。"
+    }
+  ]
+}

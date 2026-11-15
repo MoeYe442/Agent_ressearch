@@ -1,7 +1,7 @@
 name: repolens
 x-app: &app
   build: .
-  image: repolens:0.7.0
+  image: repolens:0.8.0
   init: true
   restart: unless-stopped
   stop_grace_period: 180s
@@ -114,7 +114,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.renderer
-    image: repolens-renderer:0.7.0
+    image: repolens-renderer:0.8.0
     init: true
     network_mode: none
     restart: unless-stopped

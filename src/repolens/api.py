@@ -146,6 +146,15 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
         state=health()
         return JSONResponse(state,status_code=200 if state['worker_ready'] else 503)
 
+    @app.get('/evaluation/config')
+    def evaluation_configuration():
+        from repolens.benchmark.configuration import public_configuration
+        return public_configuration(settings,service)
+
+    @app.get('/evaluation/tasks/{idempotency_key}')
+    def evaluation_task_lookup(idempotency_key:str):
+        return service.get(db.get('idempotency',idempotency_key)['task_id'])
+
     @app.post("/repositories/{snapshot_id}/retrieval-index", status_code=202)
     def build_retrieval_index(snapshot_id: str, body: RetrievalIndexRequest):
         # Match the worker build's retrieval-lock -> database-lock ordering.
