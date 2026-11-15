@@ -8,7 +8,7 @@
 </head>
 <body>
   <aside class="navigation" aria-label="主导航">
-    <a class="brand" href="/"><span class="brand-mark">R<span>↗</span></span>RepoLens<span class="version">V3.1</span></a>
+    <a class="brand" href="/"><span class="brand-mark">R<span>↗</span></span>RepoLens<span class="version">V3.2</span></a>
     <div class="nav-caption">REPOSITORY INTELLIGENCE</div>
     <button id="new-analysis" class="new-button"><span>＋</span> 新建分析</button>
     <div class="nav-section"><span>分析记录</span><span id="history-count">0</span></div>
@@ -39,6 +39,8 @@
           <label for="retrieval-mode">检索方式</label><select id="retrieval-mode"><option value="keyword">关键词检索</option><option value="hybrid" disabled>混合检索 · 关键词 / 符号 / 向量</option></select>
           <div class="retrieval-options"><label for="enable-rerank"><input id="enable-rerank" type="checkbox" disabled>启用重排</label></div>
           <p id="retrieval-hint" class="field-hint">正在读取检索配置…</p>
+          <label for="document-urls">补充网页资料（选填，每行一个 HTTPS 地址，最多 10 个）</label><textarea id="document-urls" rows="2" maxlength="10000" placeholder="例如：项目文档、技术说明的完整地址"></textarea>
+          <div class="retrieval-options"><label for="render-pages"><input id="render-pages" type="checkbox">尝试动态页面渲染</label></div><p id="document-hint" class="field-hint">只采集用户填写的允许站点；网页版本标签不等于已核验版本。</p>
           <label for="question">研究问题</label><textarea id="question" name="question" rows="3" placeholder="例如：任务状态保存在哪里？进程重启后能否恢复？" maxlength="10000" required></textarea>
           <div class="form-footer"><span>固定快照 · Python AST + 全文检索</span><button class="primary" id="submit-analysis" type="submit">开始分析 <span aria-hidden="true">↗</span></button></div>
           <p id="import-status" class="field-hint" role="status" aria-live="polite"></p>
@@ -61,7 +63,7 @@
           <aside id="evidence-sidebar" class="card evidence-sidebar" aria-label="证据查看器"><div class="evidence-heading"><span class="section-label">SOURCE EVIDENCE</span><span class="verified-dot">● 快照校验</span></div><div id="evidence-placeholder" class="empty-state"><span class="empty-symbol">⧉</span><h3>让结论有据可查</h3><p>点击报告中的引用，查看对应代码、行号与版本。</p></div><div id="evidence-detail" hidden><h3 id="evidence-location"></h3><div id="evidence-meta" class="evidence-meta"></div><pre class="code-view"><code id="evidence-code"></code></pre><p class="field-hint">哈希与行号验证通过，仅表示来源有效；结论是否得到支持仍需审阅。</p></div></aside>
         </div>
       </section>
-      <footer class="page-footer"><span>RepoLens / Evidence before conclusions</span><span>V3.1 · 单 Agent / 协作 · 本地 / GitHub Python 仓库</span></footer>
+      <footer class="page-footer"><span>RepoLens / Evidence before conclusions</span><span>V3.2 · 单 Agent / 协作 · 本地 / GitHub Python 仓库</span></footer>
     </div>
   </main>
 </body>

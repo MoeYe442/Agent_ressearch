@@ -51,6 +51,9 @@ class EvidenceStore:
         item = Evidence.model_validate(raw)
         if snapshot_id is not None and snapshot_id != item.snapshot_id:
             raise ValueError("snapshot_mismatch")
+        if item.source_type=='web_document':
+            from repolens.documents import DocumentStore
+            return DocumentStore(self.db).get_evidence(item)
         fresh = self.read_evidence(item.snapshot_id, item.path, item.start_line, item.end_line)
         if fresh != item:
             raise ValueError("evidence_integrity_error")

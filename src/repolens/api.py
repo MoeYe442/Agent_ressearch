@@ -50,6 +50,7 @@ class TaskRequest(BaseModel):
     mode: Literal["single", "collaborative"] = "single"
     retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
     rerank: bool = False
+    document_ids: list[str] = Field(default_factory=list,max_length=10)
 
     @model_validator(mode="after")
     def valid_retrieval(self):
@@ -57,6 +58,13 @@ class TaskRequest(BaseModel):
             raise ValueError("rerank_requires_hybrid")
         return self
 
+
+class DocumentRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    url: str = Field(min_length=1,max_length=2048)
+    render: bool = False
+    declared_version: str | None = Field(default=None,max_length=100)
+    idempotency_key: str | None = Field(default=None,min_length=1,max_length=100)
 
 class RetrievalIndexRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -202,7 +210,31 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
     def submit(body: TaskRequest):
         # Index is committed before a snapshot becomes eligible for analysis.
         db.get("indexes", body.snapshot_id)
-        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key, mode=body.mode, retrieval_mode=body.retrieval_mode, rerank=body.rerank)
+        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key, mode=body.mode, retrieval_mode=body.retrieval_mode, rerank=body.rerank,document_ids=body.document_ids)
+
+    def document_metadata(row):return {key:value for key,value in row.items() if key!='paragraphs'}
+
+    @app.get('/document-config')
+    def document_config():
+        return {'enabled':bool(settings.document_hosts),'hosts':settings.document_hosts,'renderer_configured':bool(settings.renderer_socket)}
+
+    @app.post('/repositories/{snapshot_id}/documents',status_code=202)
+    def collect_document(snapshot_id:str,body:DocumentRequest):
+        with service.lock,db.atomic():
+            row=service.documents.register(snapshot_id,**body.model_dump())
+            if row['status']=='queued':service.queue.put(('document',row['id']))
+        return document_metadata(row)
+
+    @app.get('/repositories/{snapshot_id}/documents')
+    def list_documents(snapshot_id:str):
+        db.get_snapshot(snapshot_id)
+        return [document_metadata(row) for row in db.all('web_documents') if row['snapshot_id']==snapshot_id]
+
+    @app.get('/documents/{document_id}')
+    def document(document_id:str):return document_metadata(db.get('web_documents',document_id))
+
+    @app.post('/documents/{document_id}/cancel')
+    def cancel_document(document_id:str):return document_metadata(service.documents.cancel(document_id))
 
     @app.get("/tasks")
     def tasks():

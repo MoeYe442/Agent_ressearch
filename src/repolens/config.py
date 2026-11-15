@@ -1,5 +1,6 @@
 import os
 import ipaddress
+import re
 from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Literal
@@ -14,6 +15,20 @@ class Settings(BaseModel):
     redis_url: SecretStr = SecretStr('')
     redis_queue: str = Field(default='repolens:wake',pattern=r'^[A-Za-z0-9:_-]{1,100}$')
     client_networks: list[str] = ['127.0.0.0/8','::1/128']
+    document_hosts: list[str] = Field(default_factory=list,max_length=20)
+    document_timeout: float = Field(default=30,gt=0,le=30)
+    document_max_bytes: int = Field(default=2*1024*1024,gt=0,le=2*1024*1024)
+    renderer_socket: Path | None = None
+
+    @field_validator('document_hosts')
+    @classmethod
+    def validate_document_hosts(cls,values):
+        result=[]
+        for value in values:
+            host=value.encode('idna').decode().lower()
+            if len(host)>253 or not re.fullmatch(r'[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?',host) or '..' in host or '.' not in host:raise ValueError('invalid_document_host')
+            result.append(host)
+        return sorted(set(result))
 
     @field_validator('client_networks')
     @classmethod
@@ -82,6 +97,8 @@ class Settings(BaseModel):
             redis_url=SecretStr(os.getenv('REPOLENS_REDIS_URL','')),
             redis_queue=os.getenv('REPOLENS_REDIS_QUEUE','repolens:wake'),
             client_networks=[part.strip() for part in os.getenv('REPOLENS_CLIENT_NETWORKS','127.0.0.0/8,::1/128').split(',') if part.strip()],
+            document_hosts=[part.strip() for part in os.getenv('REPOLENS_DOCUMENT_HOSTS','').split(',') if part.strip()],
+            renderer_socket=Path(os.environ['REPOLENS_RENDERER_SOCKET']) if os.getenv('REPOLENS_RENDERER_SOCKET') else None,
             model_url=os.getenv("REPOLENS_MODEL_URL", "https://api.openai.com/v1"),
             model_name=os.getenv("REPOLENS_MODEL", ""),
             model_key=SecretStr(os.getenv("REPOLENS_API_KEY", "")),

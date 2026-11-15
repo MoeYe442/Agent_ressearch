@@ -19,6 +19,8 @@ def signature(task,settings,db):
     excluded={'workspace_root','data_dir','execution_mode','redis_queue','client_networks',*provider}
     runtime={key:value for key,value in settings.model_dump(mode='json').items() if key not in excluded and not hasattr(getattr(settings,key),'get_secret_value')}
     runtime['storage_backend']=db.backend
+    from repolens.documents import DocumentStore
+    runtime['attached_documents']=DocumentStore(db).summaries(task.document_ids,task.snapshot_id)
     return {'version':'recovery-v1','source':source,'provider':provider,'execution_configuration':runtime,'model':settings.model_name,'embedding_model':settings.embedding_model,'dimensions':settings.embedding_dimensions,'rerank_model':settings.rerank_model,'test_environment':settings.test_environment,'snapshot_id':task.snapshot_id,'manifest':digest(snapshot.manifest),'question':digest(task.question),'mode':task.mode,'retrieval_mode':task.retrieval_mode,'rerank':task.rerank,'retrieval_configuration':task.retrieval_configuration,'task_limits':task.budget_limits,'runtime_limits':{k:getattr(settings,k) for k in ['max_model_calls','max_tool_calls','max_tokens','max_seconds','max_output_tokens']}}
 
 
@@ -37,7 +39,9 @@ def eligibility(db,task,settings,*,validate_sources=False,retrieval=None):
     run=saved_run(db,task.id)
     if not task.recovery_enabled or not run or not checkpoint_exists(db,task.id):return False,'recovery_checkpoint_missing'
     if run.get('recovery_error'):return False,run['recovery_error']
-    if run['signature']!=signature(task,settings,db) or digest(run['signature'])!=task.recovery_config_hash:return False,'recovery_configuration_changed'
+    try:current=signature(task,settings,db)
+    except (ValueError,KeyError,OSError):return False,'recovery_source_changed'
+    if run['signature']!=current or digest(run['signature'])!=task.recovery_config_hash:return False,'recovery_configuration_changed'
     if task.retrieval_mode=='hybrid':
         if retrieval is None:
             from repolens.retrieval import RetrievalService

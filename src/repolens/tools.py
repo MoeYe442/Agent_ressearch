@@ -6,6 +6,7 @@ from repolens.indexing import RepositoryIndex
 from repolens.models import ToolResult
 from repolens.document_scope import allows_path
 from repolens.model_client import ProviderError
+from repolens.documents import DocumentStore
 
 
 class EmptyArgs(BaseModel):
@@ -27,8 +28,18 @@ class EvidenceArgs(EmptyArgs):
     evidence_id: str = Field(min_length=1, max_length=100)
 
 
+class DocumentArgs(EmptyArgs):
+    document_id: str = Field(min_length=1,max_length=100)
+    start_line: int = Field(default=1,ge=1)
+    end_line: int | None = Field(default=None,ge=1)
+
+
 ARGUMENTS = {"list_tree": EmptyArgs, "search_symbols": SearchArgs, "search_text": SearchArgs, "read_file": ReadArgs, "get_symbol": SearchArgs, "retrieve_evidence": EvidenceArgs}
+ARGUMENTS.update(list_documents=EmptyArgs,fetch_document=DocumentArgs,search_documents=SearchArgs)
 DESCRIPTIONS = {
+    'list_documents':'List only user-attached, already collected webpage IDs and source/version limitations. Never browse or fetch URLs.',
+    'search_documents':'Keyword search only user-attached saved webpages. Returns at most three matching paragraphs with evidence. No network.',
+    'fetch_document':'Read saved paragraphs (line numbers here mean paragraph positions) from an attached document ID. At most 40 paragraphs and 24KB; returns immutable evidence. No network.',
     "list_tree": "List snapshot files (up to 1000 paths); cannot access source workspace.",
     "search_symbols": "Find Python qualified functions, classes, imports, or Markdown headings. Returns evidence.",
     "search_text": "Keyword search within this snapshot. Returns up to 20 text windows with evidence.",
@@ -54,7 +65,18 @@ class ToolRegistry:
                 raise ValueError("unknown_tool")
             args = ARGUMENTS[name].model_validate(arguments)
             self.db.get_snapshot(context.snapshot_id)
-            if name == "list_tree":
+            if name in {'list_documents','fetch_document','search_documents'}:
+                if context.source_scope=='code':raise ValueError('tool_scope_denied')
+                store=DocumentStore(self.db)
+                if name=='list_documents':result.data=store.summaries(context.document_ids,context.snapshot_id)
+                elif name=='search_documents':
+                    items=store.search(context.document_ids,context.snapshot_id,args.query,args.limit)
+                    result.data=[item.model_dump() for item in items];result.evidence_ids=[item.id for item in items]
+                else:
+                    if args.document_id not in context.document_ids:raise ValueError('document_not_attached')
+                    item=store.evidence(context.snapshot_id,**args.model_dump())
+                    result.data=item.model_dump();result.evidence_ids=[item.id]
+            elif name == "list_tree":
                 paths = sorted(path for path in self.db.get_snapshot(context.snapshot_id).manifest if allows_path(path, context.source_scope))
                 result.data = {"paths": paths[:1000], "total": len(paths), "truncated": len(paths) > 1000}
             elif name in {"search_text", "search_symbols", "get_symbol"}:
@@ -78,6 +100,7 @@ class ToolRegistry:
                     item = self.evidence.read_evidence(context.snapshot_id, **args.model_dump())
                 else:
                     item = self.evidence.get(args.evidence_id, context.snapshot_id)
+                    if item.source_type=='web_document' and item.document_id not in context.document_ids:raise ValueError('document_not_attached')
                     if not allows_path(item.path, context.source_scope):
                         raise ValueError("tool_scope_denied")
                 result.evidence_ids = [item.id]

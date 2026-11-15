@@ -5,6 +5,7 @@ DOC_NAMES = {"readme", "license", "copying", "changelog"}
 
 
 def source_type(path):
+    if path.startswith('web:'):return 'web_document'
     file = PurePosixPath(path.lower())
     return "repository_document" if file.suffix in DOC_SUFFIXES or file.name in DOC_NAMES else "repository_file"
 
@@ -12,7 +13,7 @@ def source_type(path):
 def allows_path(path, scope="all"):
     if scope not in {"all", "code", "docs"}:
         raise ValueError("invalid_source_scope")
-    document = source_type(path) == "repository_document"
+    document = source_type(path) != "repository_file"
     return scope == "all" or (document if scope == "docs" else not document)
 
 

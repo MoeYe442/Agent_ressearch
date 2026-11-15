@@ -19,6 +19,7 @@ from repolens.checkpoints import checkpoint_exists
 from repolens.single_graph import DurableSingleRunner
 from repolens.review import render_report
 from repolens.dispatch import DurableQueue
+from repolens.documents import DocumentService,DocumentStore
 
 TERMINAL = {"succeeded", "partial", "failed", "cancelled"}
 
@@ -38,6 +39,7 @@ class TaskService:
         self.worker = None
         self.github_client_factory = github_client_factory or GitHubClient
         self.lease=WorkerLease(db,on_lost=self.stopping.set)
+        self.documents=DocumentService(settings,db)
         self.durable=settings.execution_mode!='embedded'
         if self.durable:self.queue=DurableQueue(db,settings,self.lease)
 
@@ -51,6 +53,11 @@ class TaskService:
                 return
             self.lease.acquire();self.db.worker_guard=self.lease.guard;self.lease.start_heartbeat()
             self.retrieval.interrupt_unfinished(pending=self.queue.is_pending if self.durable else lambda kind,key:False)
+            for document in self.db.all('web_documents'):
+                if document['status']=='running':
+                    document.update(status='failed',error_code='document_interrupted')
+                    self.db.put('web_documents',document['id'],document)
+                elif document['status']=='queued':self.queue.put(('document',document['id']))
             # Fresh process startup is explicit failure of interrupted work, never a fake resume.
             for payload in self.db.all("tasks"):
                 task = AnalysisTask.model_validate(payload)
@@ -184,7 +191,9 @@ class TaskService:
             self.queue.put(("import", snapshot_id))
         return snapshot
 
-    def submit(self, snapshot_id, question, idempotency_key=None, *, mode="single", retrieval_mode="keyword", rerank=False):
+    def submit(self, snapshot_id, question, idempotency_key=None, *, mode="single", retrieval_mode="keyword", rerank=False,document_ids=None):
+        document_ids=sorted(set(document_ids or []))
+        if len(document_ids)>10:raise ValueError('document_attachment_limit')
         if mode not in {"single", "collaborative"}:
             raise ValueError("invalid_mode")
         if retrieval_mode not in {"keyword", "hybrid"} or (rerank and retrieval_mode != "hybrid"):
@@ -194,13 +203,14 @@ class TaskService:
             if idempotency_key:
                 try:
                     prior = self.db.get("idempotency", idempotency_key)
-                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question or prior.get("mode", "single") != mode or prior.get("retrieval_mode", "keyword") != retrieval_mode or prior.get("rerank", False) != rerank:
+                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question or prior.get("mode", "single") != mode or prior.get("retrieval_mode", "keyword") != retrieval_mode or prior.get("rerank", False) != rerank or prior.get('document_ids',[])!=document_ids:
                         raise ValueError("idempotency_conflict")
                     return self.get(prior["task_id"])
                 except KeyError:
                     pass
             if self.db.get_snapshot(snapshot_id).status != "ready":
                 raise ValueError("snapshot_not_ready")
+            DocumentStore(self.db).summaries(document_ids,snapshot_id)
             limits = {key: getattr(self.settings, key) for key in ("max_model_calls", "max_tool_calls", "max_tokens", "max_seconds", "max_output_tokens")}
             identifier = ("synthetic:" + type(self.model).__name__) if self.settings.test_environment else self.settings.model_name or None
             configuration = {}
@@ -209,7 +219,8 @@ class TaskService:
                 if rerank and not self.retrieval.rerank_configured:
                     raise ValueError("rerank_not_configured")
                 configuration = {**index["configuration"], "index_id": index["id"], "rerank_model": self.settings.rerank_model if rerank else None}
-            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.6-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration,recovery_enabled=True)
+            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.7-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration,recovery_enabled=True)
+            task.document_ids=document_ids
             task.recovery_config_hash=digest(signature(task,self.settings,self.db))
             # Single process submission lock; key, task and first event share one transaction.
             with self.db.connect() as conn:
@@ -220,7 +231,7 @@ class TaskService:
                 conn.execute("INSERT INTO events VALUES (?,?,?)", (task.id, 1, event.model_dump_json()))
                 if idempotency_key:
                     import json
-                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id, "mode": mode, "retrieval_mode": retrieval_mode, "rerank": rerank})))
+                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id, "mode": mode, "retrieval_mode": retrieval_mode, "rerank": rerank,'document_ids':document_ids})))
             self.queue.put(("task", task.id))
             return task
 
@@ -258,6 +269,8 @@ class TaskService:
                     self._import(key)
                 elif kind == "retrieval":
                     self.retrieval.build(key, self.stopping.is_set)
+                elif kind=='document':
+                    self.documents.build(key,self.stopping.is_set)
                 else:
                     self._execute(key)
             except LeaseLost:
@@ -352,6 +365,7 @@ class TaskService:
 
         runner = CollaborativeRunner(self.model, self.registry, self.settings) if task.mode == "collaborative" else DurableSingleRunner(self.model,self.registry,self.settings) if task.recovery_enabled else AgentRunner(self.model, self.registry, self.settings)
         context = ToolContext(snapshot_id=task.snapshot_id, task_id=task_id, retrieval_mode=task.retrieval_mode, rerank=task.rerank, retrieval_index_id=task.retrieval_configuration.get("index_id"))
+        context.document_ids=task.document_ids
         result = None
         if task.retrieval_mode == "hybrid":
             try:

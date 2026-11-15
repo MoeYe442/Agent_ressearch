@@ -30,6 +30,7 @@ def migrate(source_data,settings):
                 raise ValueError('finish_or_cancel_tasks_before_migration')
             if row['kind']=='snapshots' and value['status']=='importing':raise ValueError('finish_imports_before_migration')
             if row['kind']=='retrieval_jobs' and value['status'] in {'queued','building'}:raise ValueError('finish_indexing_before_migration')
+            if row['kind']=='web_documents' and value['status'] in {'queued','running'}:raise ValueError('finish_document_collection_before_migration')
         target=open_database(settings);WorkerLease(target);RepositoryIndex(target)
         setup_postgres(target)
         with target.atomic() as conn:

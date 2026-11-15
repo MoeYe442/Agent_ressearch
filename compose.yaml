@@ -1,7 +1,7 @@
 name: repolens
 x-app: &app
   build: .
-  image: repolens:0.6.0
+  image: repolens:0.7.0
   init: true
   restart: unless-stopped
   stop_grace_period: 180s
@@ -13,6 +13,7 @@ x-app: &app
   mem_limit: 512m
   volumes:
     - repolens-data:/var/lib/repolens
+    - render-socket:/run/repolens-render
     - ${REPOLENS_REPOSITORIES:-..}:/workspace:ro
   environment: &environment
     REPOLENS_WORKSPACE: /workspace
@@ -20,6 +21,8 @@ x-app: &app
     REPOLENS_DATABASE_URL: postgresql://repolens@postgres:5432/repolens
     PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD locally in .env}
     REPOLENS_REDIS_URL: redis://redis:6379/0
+    REPOLENS_DOCUMENT_HOSTS: ${REPOLENS_DOCUMENT_HOSTS:-}
+    REPOLENS_RENDERER_SOCKET: /run/repolens-render/browser.sock
     REPOLENS_MODEL_URL: ${REPOLENS_MODEL_URL:-https://api.openai.com/v1}
     REPOLENS_MODEL: ${REPOLENS_MODEL:-}
     REPOLENS_API_KEY: ${REPOLENS_API_KEY:-}
@@ -106,10 +109,30 @@ services:
       - repolens-data:/var/lib/repolens
       - ${REPOLENS_MIGRATION_DIR:-./.data}:/migration:ro
     command: [python, -m, repolens.migrate, --source-data, /migration]
+  renderer:
+    profiles: [browser]
+    build:
+      context: .
+      dockerfile: Dockerfile.renderer
+    image: repolens-renderer:0.7.0
+    init: true
+    network_mode: none
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    pids_limit: 128
+    stop_grace_period: 40s
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    volumes:
+      - render-socket:/run/repolens-render
 
 volumes:
   postgres-data:
   repolens-data:
+  render-socket:
 networks:
   repolens:
     ipam:

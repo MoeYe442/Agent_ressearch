@@ -43,6 +43,13 @@ class Evidence(BaseModel):
     content_hash: str
     commit_sha: str | None = None
     source_type: str = "repository_file"
+    document_id: str | None = None
+    url: str | None = None
+    title: str | None = None
+    collected_at: str | None = None
+    declared_version: str | None = None
+    version_match: str | None = None
+    collection_limitations: list[str] = Field(default_factory=list)
 
 
 class ToolContext(BaseModel):
@@ -52,6 +59,7 @@ class ToolContext(BaseModel):
     retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
     rerank: bool = False
     retrieval_index_id: str | None = None
+    document_ids: list[str] = Field(default_factory=list,max_length=10)
 
 
 class ToolResult(BaseModel):
@@ -122,6 +130,7 @@ class AnalysisTask(BaseModel):
     id: str
     snapshot_id: str
     question: str
+    document_ids: list[str] = Field(default_factory=list,max_length=10)
     status: str = "queued"
     cancel_requested: bool = False
     error_code: str | None = None
