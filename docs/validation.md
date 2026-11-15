@@ -42,3 +42,7 @@ V2.1 最终独立审查修复后：**292 passed，273.96s**，含36项浏览器�
 ## V3.1 独立 worker 工程化（2026-11-15）
 
 版本0.6.0提供PostgreSQL/官方PG检查点、独立API/worker、数据库持久派发与Redis唤醒、Compose及只读源库历史迁移。一次静态全分支审查的三项重要问题已修正。遵守用户AGENT.md，本轮**只编译，不运行测试**：Python字节码/Jinja模板编译、JavaScript语法、pip check与Compose静态配置检查；没有Docker build/up、数据库迁移或模型调用，没有重启原服务，不复用上一版本339项通过结论。部署运行验收仍待进行，见 docs/infrastructure.md 和 docs/results/infrastructure-compile.json。
+
+## V3.2 网页资料与只读 MCP（2026-11-15）
+
+版本0.7.0提供明确允许站点的公网HTTPS采集、固定段落证据、任务附件/恢复校验、可选断网Playwright侧车，以及复用相同工具校验的MCP stdio。一次静态全分支审查的两项重要问题已修复，一项标题显示轻微问题暂缓。仍按用户要求只编译：Python/Jinja、node语法、pipcheck和Compose browser/migration配置；没有运行测试、网页采集、MCP会话、浏览器/容器或真实模型。实际运行效果未验收，详见docs/web-documents-mcp.md、docs/web-mcp-execution.md和docs/results/web-mcp-compile.json。

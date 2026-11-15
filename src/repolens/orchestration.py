@@ -227,7 +227,7 @@ class CollaborativeRunner:
             except Exception:
                 state = {**state, "issues": [*state["issues"], "graph_execution_failed"]}
         for scope, reason in [("docs", "missing_documents"), ("code", "missing_code")]:
-            if not any(allows_path(path, scope) for path in snapshot.manifest):
+            if not any(allows_path(path, scope) for path in snapshot.manifest) and not (scope=='docs' and context.document_ids):
                 state = {**state, "issues": [*state["issues"], reason]}
         claims, limitations = collect_claims(state["results"]), list(state["issues"])
         observed = observe(state)

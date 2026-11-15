@@ -15,11 +15,11 @@
 - 保留用户 .gitignore/AGENT.md 改动，沿用新分支当前目录；不推送/合并。
 
 ## Tasks
-- [ ] 1. HTTPS限制采集、HTML正文、只读保存及网页证据校验。
-- [ ] 2. 断网Playwright renderer/Unix socket受控资源代理及Compose可选profile。
-- [ ] 3. 采集作业/API与任务附件、Agent/协作/恢复/迁移集成。
-- [ ] 4. 页面提交/引用来源展示与只读stdio MCP，共用schema/scope/预算校验。
-- [ ] 5. 编译/静态检查、一次全分支静态审查、修复、文档与提交。
+- [x] 1. HTTPS限制采集、HTML正文、只读保存及网页证据校验。
+- [x] 2. 断网Playwright renderer/Unix socket受控资源代理及Compose可选profile。
+- [x] 3. 采集作业/API与任务附件、Agent/协作/恢复/迁移集成。
+- [x] 4. 页面提交/引用来源展示与只读stdio MCP，共用schema/scope/预算校验。
+- [x] 5. 编译/静态检查、一次全分支静态审查、修复、文档与提交。
 
 ## Review Focus
 1. DNS rebinding、重定向、压缩炸弹、内网与file/非GET、renderer资源/进程/时间边界。

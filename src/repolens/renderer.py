@@ -24,6 +24,12 @@ def render(conn):
                 context=browser.new_context(service_workers='block',accept_downloads=False)
                 context.set_default_timeout(20000)
                 page=context.new_page()
+                page.on('pageerror',lambda error:incomplete.append(True))
+                def request_failed(req):
+                    # Intentionally omitted images/fonts/media do not invalidate
+                    # text rendering; failed active resources do.
+                    if req.resource_type in {'document','script','stylesheet','fetch','xhr'}:incomplete.append(True)
+                context.on('requestfailed',request_failed)
                 def close_popup(popup):
                     if popup!=page:incomplete.append(True);popup.close()
                 context.on('page',close_popup)
