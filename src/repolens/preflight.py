@@ -82,6 +82,11 @@ def inspect_configuration(settings, required):
     feature('model', model_ok, bool(settings.model_name or settings.model_key.get_secret_value()),
             '模型配置项齐备；凭据、连通性及工具调用能力尚未验证。',
             '在当前进程配置有效的 REPOLENS_MODEL、REPOLENS_API_KEY 和 REPOLENS_MODEL_URL，替换示例值。')
+    from repolens.config import is_deepseek_endpoint
+    if is_deepseek_endpoint(settings.model_url):
+        thinking_ok = settings.model_thinking == 'disabled'
+        add('deepseek_non_thinking_mode', 'ok' if thinking_ok else 'error' if 'model' in required or model_ok else 'warning',
+            '当前工具对话适配要求 REPOLENS_MODEL_THINKING=disabled；未验证供应商真实响应。')
 
     database = settings.database_url.get_secret_value()
     if database:

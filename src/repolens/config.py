@@ -7,6 +7,13 @@ from typing import Literal
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
+def is_deepseek_endpoint(value):
+    try:
+        return urlsplit(value).hostname == 'api.deepseek.com'
+    except ValueError:
+        return False
+
+
 class Settings(BaseModel):
     workspace_root: Path
     data_dir: Path
@@ -47,6 +54,7 @@ class Settings(BaseModel):
     max_output_tokens: int = Field(default=2048, gt=0)
     model_url: str = "https://api.openai.com/v1"
     model_name: str = ""
+    model_thinking: Literal['provider_default','disabled'] = 'provider_default'
     model_key: SecretStr = SecretStr("")
     provider_timeout: float = Field(default=45, gt=0, le=120)
     test_environment: bool = False
@@ -101,6 +109,7 @@ class Settings(BaseModel):
             renderer_socket=Path(os.environ['REPOLENS_RENDERER_SOCKET']) if os.getenv('REPOLENS_RENDERER_SOCKET') else None,
             model_url=os.getenv("REPOLENS_MODEL_URL", "https://api.openai.com/v1"),
             model_name=os.getenv("REPOLENS_MODEL", ""),
+            model_thinking=os.getenv('REPOLENS_MODEL_THINKING','provider_default'),
             model_key=SecretStr(os.getenv("REPOLENS_API_KEY", "")),
             github_token=SecretStr(os.getenv("REPOLENS_GITHUB_TOKEN", "")),
             milvus_url=os.getenv("REPOLENS_MILVUS_URL", ""),

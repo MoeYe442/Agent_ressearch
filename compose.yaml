@@ -1,7 +1,7 @@
 name: repolens
 x-app: &app
   build: .
-  image: repolens:0.10.0
+  image: repolens:0.10.1
   init: true
   restart: unless-stopped
   stop_grace_period: 180s
@@ -25,6 +25,7 @@ x-app: &app
     REPOLENS_RENDERER_SOCKET: /run/repolens-render/browser.sock
     REPOLENS_MODEL_URL: ${REPOLENS_MODEL_URL:-https://api.openai.com/v1}
     REPOLENS_MODEL: ${REPOLENS_MODEL:-}
+    REPOLENS_MODEL_THINKING: ${REPOLENS_MODEL_THINKING:-provider_default}
     REPOLENS_API_KEY: ${REPOLENS_API_KEY:-}
     REPOLENS_GITHUB_TOKEN: ${REPOLENS_GITHUB_TOKEN:-}
     REPOLENS_MILVUS_URL: ${REPOLENS_MILVUS_URL:-}
@@ -114,7 +115,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.renderer
-    image: repolens-renderer:0.10.0
+    image: repolens-renderer:0.10.1
     init: true
     network_mode: none
     restart: unless-stopped

@@ -9,6 +9,7 @@ from typing import Protocol
 import httpx
 from pydantic import ValidationError
 from repolens.models import ModelTurn, ModelUsage, ToolCall
+from repolens.config import is_deepseek_endpoint
 
 
 class ChatModel(Protocol):
@@ -37,6 +38,8 @@ class HTTPChatModel:
 
     async def _complete(self, messages, tools, max_output_tokens):
         payload = {"model": self.settings.model_name, "messages": messages, "max_tokens": max_output_tokens}
+        if self.settings.model_thinking == 'disabled':
+            payload['thinking'] = {'type':'disabled'}
         if tools:
             payload.update(tools=tools, tool_choice="auto")
         timeout = self.settings.provider_timeout
@@ -76,4 +79,6 @@ class HTTPChatModel:
 
 
 def configured_model(settings):
+    if settings.model_name and settings.model_key.get_secret_value() and is_deepseek_endpoint(settings.model_url) and settings.model_thinking != 'disabled':
+        raise ValueError('deepseek_requires_non_thinking_mode')
     return HTTPChatModel(settings) if settings.model_name and settings.model_key.get_secret_value() else None
