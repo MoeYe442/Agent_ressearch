@@ -30,7 +30,7 @@ class DirectRunner:
         try:
             final = gateway.structured(messages, FinalAnswer, 'direct', 'direct')
             if any(item.evidence_ids for item in final.claims):
-                limitations.append('direct_answer_invented_citations')
+                limitations.insert(0, 'direct_answer_invented_citations')
             else:
                 claims = final.claims
                 for item in claims:
@@ -43,7 +43,7 @@ class DirectRunner:
             status = 'cancelled' if str(exc) == 'cancelled' else 'partial'
             limitations.append(str(exc))
         except ProviderError as exc:
-            limitations.append(exc.code)
+            limitations.insert(0, exc.code)
             status = 'partial' if exc.code == 'time_budget_exhausted' else 'failed'
         if cancelled():
             status = 'cancelled'

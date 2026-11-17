@@ -2,6 +2,7 @@
 import hashlib
 import math
 from repolens.benchmark.protocol import digest,CONFIGS
+from repolens.benchmark.validation import result_shape,review_shape
 
 
 def usage_valid(usage):
@@ -11,6 +12,7 @@ def usage_valid(usage):
 
 
 def inspect_record(plan,spec,record,context):
+    result_shape(record)
     if not isinstance(record,dict) or record.get('run_id')!=plan.run_id or record.get('plan_hash')!=digest(plan.model_dump(mode='json')) or any(record.get(key)!=spec[key] for key in spec):raise ValueError('result_identity_mismatch')
     if record.get('execution_status') not in {'succeeded','partial','failed','cancelled','timeout','error'}:raise ValueError('invalid_result_status')
     if record.get('configuration_valid') is not True:raise ValueError('invalid_execution_configuration')
@@ -79,6 +81,7 @@ def template(plan,spec,record,inspection):
 
 
 def adjudicate(plan,spec,record,inspection,review):
+    review_shape(review)
     if review.get('run_id')!=plan.run_id or review.get('row_key')!=spec['key'] or review.get('result_hash')!=digest(record):raise ValueError('stale_or_foreign_review')
     canonical=template(plan,spec,record,inspection)
     if set(review)!=set(canonical):raise ValueError('invalid_review_fields')

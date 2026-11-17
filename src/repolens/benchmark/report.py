@@ -9,11 +9,14 @@ from repolens.benchmark.files import Artifacts,read_json
 from repolens.benchmark.protocol import digest,matrix
 from repolens.benchmark.review import inspect_record,adjudicate,template
 from repolens.benchmark.comparisons import comparisons
+from repolens.benchmark.validation import mapping,string_fields,optional_usage,context_shape,review_shape
 
 
 def load_rows(files,plan):
     specs=matrix(plan);context=files.read('context.json') if files.path('context.json').exists() else None
-    if context and (context.get('run_id')!=plan.run_id or context.get('plan_hash')!=digest(plan.model_dump(mode='json'))):raise ValueError('foreign_run_context')
+    if files.path('context.json').exists():
+        context_shape(context)
+        if context.get('run_id')!=plan.run_id or context.get('plan_hash')!=digest(plan.model_dump(mode='json')):raise ValueError('foreign_run_context')
     if sum(files.path('rows/'+spec['key']+'.json').stat().st_size for spec in specs if files.path('rows/'+spec['key']+'.json').exists())>256*1024*1024:raise ValueError('run_artifact_total_limit')
     rows=[]
     for spec in specs:
@@ -25,7 +28,9 @@ def load_rows(files,plan):
                 if type(context['server'].get('synthetic')) is not bool:raise ValueError('unknown_run_environment')
                 record=files.read(name);inspection=inspect_record(plan,spec,record,context)
                 if record.get('task'):
-                    preparation=files.read('preparations/'+inspection['case'].repository+'-snapshot.json')['snapshot']
+                    preparation=mapping(files.read('preparations/'+inspection['case'].repository+'-snapshot.json'),'invalid_snapshot_preparation')
+                    preparation=mapping(preparation.get('snapshot'),'invalid_snapshot_preparation')
+                    string_fields(preparation,('id','manifest_hash','commit_sha'),'invalid_snapshot_preparation')
                     snapshot=record.get('snapshot') or {}
                     if preparation['id']!=snapshot.get('id') or preparation['manifest_hash']!=snapshot.get('manifest_hash') or preparation['commit_sha']!=snapshot.get('commit'):raise ValueError('snapshot_preparation_mismatch')
                 row.update(record=record,inspection=inspection)
@@ -46,6 +51,7 @@ def reviews_for(paths,plan):
         packet=read_json(path)
         if not isinstance(packet,dict) or set(packet)!={'schema_version','run_id','plan_hash','rows'} or packet.get('schema_version')!=1 or packet.get('run_id')!=plan.run_id or packet.get('plan_hash')!=digest(plan.model_dump(mode='json')) or not isinstance(packet.get('rows'),list):raise ValueError('invalid_or_foreign_review_packet')
         for row in packet['rows']:
+            review_shape(row)
             key=row.get('row_key')
             if key not in allowed or key in result:raise ValueError('duplicate_or_unknown_review_row')
             result[key]=row
@@ -88,7 +94,11 @@ def build_report(directory,review_paths=()):
     for repo in plan.suite.repositories:
         path='preparations/'+repo.id+'-index.json'
         if files.path(path).exists():
-            value=files.read(path)['index'];preparations.append({'repository':repo.id,'index_id':value.get('id'),'status':value.get('status'),'usage':value.get('usage')})
+            preparation=mapping(files.read(path),'invalid_index_preparation')
+            value=mapping(preparation.get('index'),'invalid_index_preparation')
+            string_fields(value,('id','status'),'invalid_index_preparation')
+            optional_usage(value.get('usage'),'invalid_index_usage')
+            preparations.append({'repository':repo.id,'index_id':value.get('id'),'status':value.get('status'),'usage':value.get('usage')})
     public_rows=[{'key':row['key'],'case_id':row['case_id'],'configuration':row['configuration'],'repeat':row['repeat'],'status':row['record']['execution_status'] if row['record'] else 'invalid' if row['error'] else 'not_run','artifact_error':row['error'] or (row['record'] or {}).get('artifact_error'),'error_code':(row['record'] or {}).get('error_code'),'structure_pass':row['inspection']['structure_pass'] if row['inspection'] else None,'quality_pass':(row['review'] or {}).get('quality_pass') if plan.suite.annotation_status=='human_approved' and synthetic is False else None,'manual_quality_judgment':(row['review'] or {}).get('quality_pass'),'synthetic':synthetic,'annotation_status':plan.suite.annotation_status,'result_hash':digest(row['record']) if row['record'] else None} for row in rows]
     return {'schema_version':1,'run_id':plan.run_id,'plan_hash':digest(plan.model_dump(mode='json')),'suite_id':plan.suite.id,'suite_hash':plan.suite_hash,'repeat_count':plan.repeats,'case_count':len(plan.case_ids),'selected_case_ids':plan.case_ids,'annotation_status':plan.suite.annotation_status,'synthetic':synthetic,'server':context['server'] if context else None,'summaries':summaries,'primary_quality_difference_percentage_points':difference,'comparison_note':'Descriptive paired configurations on identical planned case/repeat slots. Three repeats are not independent repositories; no statistical-significance claim. Draft rubrics or synthetic runs never publish quality rates.','comparisons':comparisons(plan,rows,summaries),'shared_index_builds':preparations,'results':public_rows}
 
