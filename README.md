@@ -2,7 +2,7 @@
 
 Agent_ressearch：基于固定快照和可复查引用的开源项目研读平台。
 
-本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.9.1；新增直接回答/历史压缩基线与对比统计，详见[基线说明](docs/evaluation-baselines.md)。新增固定commit的30题标注草案、显式评测CLI、人工评分绑定与报告导出，另附演示/简历素材。仍按要求只编译，没有运行测试、评测或服务，真实指标尚未取得。见[评测说明](docs/evaluation.md)、[网页与MCP](docs/web-documents-mcp.md)及[工程化](docs/infrastructure.md)。
+本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.9.2；新增直接回答/历史压缩基线与对比统计，详见[基线说明](docs/evaluation-baselines.md)。新增固定commit的30题标注草案、显式评测CLI、人工评分绑定与报告导出，另附演示/简历素材。仍按要求只编译，没有运行测试、评测或服务，真实指标尚未取得。见[评测说明](docs/evaluation.md)、[网页与MCP](docs/web-documents-mcp.md)及[工程化](docs/infrastructure.md)。
 
 ## Windows PowerShell 启动
 
@@ -116,3 +116,5 @@ API 示例：`POST /repositories` JSON 为 `{"github_url":"https://github.com/pa
 完整流程见[评测协议](docs/evaluation.md)，演示分镜见[demo.md](docs/demo.md)，技术取舍见[showcase.md](docs/showcase.md)，诚实的简历素材见[resume.md](docs/resume.md)。本轮未执行上述评测、没有录制视频，不填写质量或费用提升；已补齐无检索直接回答、规则式历史压缩及同题对比统计，使用方式与边界见[评测基线](docs/evaluation-baselines.md)；实际消融结果仍待运行。
 
 0.9.1 收尾修复：直接回答失败时保留真实错误码；评测工件先检查嵌套结构，损坏单题保留为无效槽位。见[容错说明](docs/evaluation-hardening.md)。仅完成编译与静态检查，未运行测试或真实评测。
+
+0.9.2 修复中断任务的页面取消入口，并在取消时保留已有部分报告、引用和统计。见[取消说明](docs/recovery-cancellation.md)。仍只做编译与静态检查。

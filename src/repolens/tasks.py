@@ -251,7 +251,20 @@ class TaskService:
             task = self.get(task_id)
             if task.status=='partial' and task.resume_available:
                 task.cancel_requested=True;task.status='cancelled';task.resume_available=False
-                report=paused_report(self.db,task)
+                task.error_code=None;task.recovery_error=None
+                try:
+                    # Cancellation closes recovery; it must not erase findings,
+                    # evidence, role usage or compression counters already saved.
+                    report=AnalysisResult.model_validate(self.db.get('reports',task.id))
+                    report.status='cancelled'
+                    report.usage=current_usage(self.db,task.id)
+                    report.limitations=list(dict.fromkeys([*report.limitations,'cancelled']))
+                    report.markdown+='\n\n- Task cancelled; recovery is disabled.\n'
+                except KeyError:
+                    try:graph=self.db.get('graphs',task.id)
+                    except KeyError:graph=None
+                    report=paused_report(self.db,task,graph)
+                task.usage=report.usage
                 self._save(task,'task_finished',{'status':'cancelled'},report=report)
                 return task
             if task.status in TERMINAL or task.cancel_requested:
