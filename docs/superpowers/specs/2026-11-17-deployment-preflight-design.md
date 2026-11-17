@@ -1,0 +1,13 @@
+# Deployment configuration preflight
+
+User continued the recommended deployment preparation and small-run acceptance path. Current shell has no model, PostgreSQL, Redis or retrieval configuration, and no root .env. Implement a repeatable offline readiness command before any live acceptance. Existing AGENT.md compile-only preference remains; the actual local configuration inventory is a read-only operational inspection, not a test run.
+
+Approach: pure configuration/dependency/filesystem inspection is the initial delivery. Compared with automatic startup or service probes, it produces a reviewable blocker list without connecting to providers/databases, modifying business state or incurring charges. It cannot prove credentials, connectivity, tool calling, worker presence or actual runtime readiness. Those remain a separate operational acceptance stage after local settings and budget exist.
+
+Command: python -m repolens.preflight [--tools-only] [--require FEATURE ...] [--json]. Default model requirement; explicit requirements for postgres, redis, hybrid, rerank, documents, renderer. Rerank implies hybrid; renderer implies document allowlist. No .env loading or new secret parser; native process environment is authoritative. Compose operators run the command in their intended container environment after building/configuring it, not against Windows host paths as if those were container settings.
+
+Report contains only version, configuration-ready boolean, runtime_verified=false, requirement names, fixed diagnostic codes/messages and package versions. Never include raw configuration values, credentials, DSNs, endpoint URLs, model identifiers or exception text. Nonzero exit for blocking configuration issues. Optional unconfigured features are skipped; partially configured optional features warn without blocking keyword-only use. Redis configured in embedded mode is not usable as durable wake dispatch. Renderer configuration requires Linux and a declared Unix socket; no socket connection is made.
+
+Inspect existing workspace/data path types and permission hints without writing or creating directories. Missing data directory may be created by later startup if its nearest existing parent is writable; os.access is only a hint. Parse PostgreSQL DSN via installed psycopg conninfo parser and Redis URL via installed Redis URL parser without creating clients/pools. Check installed distributions without importing app/service/storage constructors.
+
+Preserve user files and use local codex branch. No real benchmarks, service startup, migration, provider calls or Docker build/up this round. Provide a staged runbook that separates configuration checks, service acceptance and paid model/evaluation gates, with no fabricated completion metrics.
