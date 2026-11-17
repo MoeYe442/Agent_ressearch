@@ -114,9 +114,17 @@ $("cancel-task").onclick=async()=>{
   state.actions.set(id,"cancel");updateTask(state.task);clearError();
   try{
     const task=await api(`/tasks/${id}/cancel`,{method:"POST"});
-    if(generation===state.generation&&state.task?.id===id){updateTask(task);await refreshTask(id,generation);}
+    if(generation===state.generation&&state.task?.id===id)updateTask(task);
   }catch(e){if(generation===state.generation&&state.task?.id===id)showError(e.message);}
-  finally{state.actions.delete(id);if(generation===state.generation&&state.task?.id===id){updateTask(state.task);taskControls(state.loading);}}
+  finally{
+    state.actions.delete(id);
+    if(state.task?.id===id){
+      taskControls(state.loading);
+      const currentGeneration=state.generation;
+      if(!state.loading)try{await refreshTask(id,currentGeneration);}
+      catch(e){if(currentGeneration===state.generation&&state.task?.id===id)showError(e.message);}
+    }
+  }
 };
 $("new-analysis").onclick=newAnalysis;
 $("download-report").onclick=()=>{if(!state.report)return;const url=URL.createObjectURL(new Blob([state.report.markdown],{type:"text/markdown;charset=utf-8"}));const a=node("a");a.href=url;a.download=`repolens-${state.task.id}.md`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
@@ -197,7 +205,7 @@ $("resume-task").onclick=async()=>{
   const generation=state.generation,id=state.task.id,attempt=state.task.attempt||1;
   let intent=recoveryIntent();if(!intent||intent.task_id!==id||intent.from_attempt!==attempt){intent={task_id:id,from_attempt:attempt,key:crypto.randomUUID()};sessionStorage.setItem(recoveryIntentStorage,JSON.stringify(intent));}
   state.actions.set(id,"resume");taskControls(state.loading);clearError();
-  try{const task=await api(`/tasks/${id}/resume`,{method:"POST",body:JSON.stringify({idempotency_key:intent.key})});if(recoveryIntent()?.key===intent.key)sessionStorage.removeItem(recoveryIntentStorage);if(generation===state.generation)await loadTask(task.id);else await historyList();}
+  try{const task=await api(`/tasks/${id}/resume`,{method:"POST",body:JSON.stringify({idempotency_key:intent.key})});if(recoveryIntent()?.key===intent.key)sessionStorage.removeItem(recoveryIntentStorage);if(generation===state.generation||state.task?.id===id)await loadTask(task.id);else await historyList();}
   catch(e){if(generation===state.generation)showError(e.message);}
   finally{state.actions.delete(id);if(state.task?.id===id)taskControls(state.loading);}
 };
