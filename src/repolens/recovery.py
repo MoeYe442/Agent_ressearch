@@ -8,6 +8,7 @@ from repolens.checkpoints import checkpoint_exists
 from repolens.models import AnalysisResult,Usage,Claim
 from repolens.evidence import EvidenceStore
 from repolens.review import collect_claims,render_report
+from repolens.context_compression import combine_stats
 
 
 def signature(task,settings,db):
@@ -84,4 +85,4 @@ def paused_report(db,task,graph=None):
                 claim.verification_status='references_valid';valid.append(claim)
         except (ValueError,KeyError,OSError):pass
     reason='cancelled' if task.cancel_requested else 'interrupted'
-    return AnalysisResult(status='cancelled' if task.cancel_requested else 'partial',mode=task.mode,claims=valid,limitations=[reason],markdown=render_report(valid,[reason]),usage=current_usage(db,task.id),role_usage=roles)
+    return AnalysisResult(status='cancelled' if task.cancel_requested else 'partial',mode=task.mode,claims=valid,limitations=[reason],markdown=render_report(valid,[reason]),usage=current_usage(db,task.id),role_usage=roles,evidence_ids=sorted({ref for claim in valid for ref in claim.evidence_ids}),context_stats=combine_stats((graph or {}).get('subtasks',[])))

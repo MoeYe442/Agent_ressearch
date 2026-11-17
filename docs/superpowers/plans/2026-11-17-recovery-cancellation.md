@@ -24,5 +24,5 @@ Files: tasks.py, static/workspace.js, version files, docs/recovery-cancellation.
 - [x] Trace root causes: terminal-status-only button condition; partial cancel rebuilt report without prior findings.
 - [x] Add shared cancellation predicate and per-task action lock; explicitly refresh terminal report after cancel.
 - [x] Preserve saved report fields and update cancellation status/usage atomically; fallback reads existing graph only.
-- [ ] Compile Python/Jinja, JS syntax, schema/catalog, pip and Compose configuration; no runtime verification.
-- [ ] One independent static review, one important-fix pass if needed, compile and commit locally.
+- [x] Compile Python/Jinja, JS syntax, schema/catalog, pip and Compose configuration; no runtime verification.
+- [x] One independent static review, one important-fix pass if needed, compile and commit locally.

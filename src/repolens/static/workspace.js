@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const terminal = new Set(["succeeded", "partial", "failed", "cancelled"]);
 const statuses = {queued:"等待中",running:"调查中",succeeded:"已完成",partial:"部分完成",failed:"失败",cancelled:"已取消"};
-const state = {actions:new Map(),task:null, report:null, snapshot:null, events:new Map(), evidence:new Map(), source:null, poll:null, reconnect:null, generation:0, cursor:0, evidenceRequest:0, loading:false,submitting:false,retrievalConfigured:false,rerankConfigured:false};
+const state = {actions:new Map(),refreshEpochs:new Map(),appliedRefreshes:new Map(),refreshSequence:0,task:null, report:null, snapshot:null, events:new Map(), evidence:new Map(), source:null, poll:null, reconnect:null, generation:0, cursor:0, evidenceRequest:0, loading:false,submitting:false,retrievalConfigured:false,rerankConfigured:false};
 const intentStorage = "repolens.pendingIntent.v1";
 
 function configureSource(clearInactive=false){
@@ -59,6 +59,20 @@ function storeIntent(intent){sessionStorage.setItem(intentStorage,JSON.stringify
 function normalizeDescriptor(d){return Object.fromEntries(Object.entries({...d,mode:d.mode||"single",retrieval_mode:d.retrieval_mode||"keyword",rerank:d.rerank||false,context_compression:d.context_compression||false,document_urls:d.document_urls||[],render_pages:d.render_pages||false,document_ids:d.document_ids||[]}).sort(([a],[b])=>a.localeCompare(b)));}
 function intentFor(descriptor){const old=pendingIntent();if(old&&JSON.stringify(normalizeDescriptor(old.descriptor))===JSON.stringify(normalizeDescriptor(descriptor)))return old;const intent={descriptor,key:crypto.randomUUID(),importKey:crypto.randomUUID(),snapshot_id:descriptor.snapshot_id||null};storeIntent(intent);return intent;}
 function acknowledgeIntent(intent){if(pendingIntent()?.key===intent.key)sessionStorage.removeItem(intentStorage);}
+function invalidateTaskRefresh(id){state.refreshEpochs.set(id,(state.refreshEpochs.get(id)||0)+1);}
+async function finishTaskAction(id){
+  invalidateTaskRefresh(id);
+  try{
+    if(state.task?.id===id&&!state.loading){
+      const currentGeneration=state.generation;
+      try{await refreshTask(id,currentGeneration);}
+      catch(e){if(currentGeneration===state.generation&&state.task?.id===id)showError(e.message);}
+    }
+  }finally{
+    state.actions.delete(id);
+    if(state.task?.id===id){updateTask(state.task);taskControls(state.loading);}
+  }
+}
 function canCancelTask(task){return !!task&&!task.cancel_requested&&!state.actions.has(task.id)&&(!terminal.has(task.status)||(task.status==="partial"&&task.resume_available));}
 function taskControls(loading){state.loading=loading;$("resume-task").disabled=loading||!state.task?.resume_available||state.actions.has(state.task?.id);$("cancel-task").disabled=loading||!canCancelTask(state.task);for(const control of $("followup-form").querySelectorAll("input,button"))control.disabled=loading||!state.task;}
 const errorLabels = {model_not_configured:"未配置模型。请在本地配置模型名称、API 地址和密钥后重启服务。",interrupted:"上次进程退出中断了分析，请新建任务。",outside_workspace:"仓库不在允许的工作目录内。",provider_unavailable:"模型服务不可用（provider_unavailable）。",idempotency_conflict:"此提交标识已用于其他请求。",snapshot_not_ready:"仓库仍在导入或导入失败。"};
@@ -78,7 +92,23 @@ function renderReport(report){state.report=report;const panel=$("report-panel");
 const eventTitles={context_compressed:"较早工具结果已压缩，可回读原文",task_resumed:"恢复任务已入队",resume_replayed:"恢复请求已确认",model_replayed:"复用已保存模型响应",tool_replayed:"复用已保存工具结果",recovery_checked:"恢复条件已检查",graph_updated:"分工状态已保存",subtask_started:"子任务开始",subtask_finished:"子任务结束",review_completed:"模型评审完成",task_queued:"任务已入队",task_started:"开始调查",model_started:"请求模型",model_completed:"模型响应完成",model_error:"模型请求失败",tool_started:"调用检索工具",tool_completed:"工具返回",cancel_requested:"请求取消",task_finished:"任务结束"};
 async function appendEvent(event){if(state.events.has(event.sequence))return;state.events.set(event.sequence,event);state.cursor=Math.max(state.cursor,event.sequence);const li=node("li");li.dataset.sequence=event.sequence;li.append(node("strong",eventTitles[event.type]||event.type),node("small",`#${event.sequence}`));const p=event.payload;if(p.graph&&state.task?.mode==="collaborative")renderGraph(p.graph);if(p.tool)li.append(node("p",`${p.tool} · ${p.status||"started"}${p.error_code?` · ${p.error_code}`:""}`));else if(p.error_code)li.append(node("p",p.error_code));else if(p.status)li.append(node("p",statuses[p.status]||p.status));$("event-list").append(li);if(p.evidence_ids?.length)await renderSources();}
 function connectEvents(id,generation){if(generation!==state.generation)return;state.source?.close();const source=new EventSource(`/tasks/${id}/events?after=${state.cursor}`);state.source=source;source.onopen=()=>{$("connection-state").textContent="实时连接";};source.addEventListener("task",event=>{if(generation!==state.generation)return;appendEvent(JSON.parse(event.data)).catch(e=>showError(e.message));});source.addEventListener("end",()=>{source.close();if(generation===state.generation){$("connection-state").textContent="全部事件已保存";refreshTask(id,generation).catch(e=>showError(e.message));}});source.onerror=()=>{source.close();if(generation!==state.generation)return;$("connection-state").textContent="连接中断，正在重连…";state.reconnect=setTimeout(()=>connectEvents(id,generation),800);};}
-async function refreshTask(id,generation){const task=await api(`/tasks/${id}`);if(generation!==state.generation)return;updateTask(task);if(task.mode==="collaborative"){const graph=await api(`/tasks/${id}/graph`);if(generation!==state.generation)return;renderGraph(graph);}if(terminal.has(task.status)){clearInterval(state.poll);const response=await fetch(`/tasks/${id}/report`);const report=response.ok?await response.json():null;if(generation!==state.generation)return;if(report)renderReport(report);else $("report-panel").replaceChildren(node("p",task.status==="cancelled"?"任务已取消。":"报告尚不可用。","muted"));await historyList();}}
+async function refreshTask(id,generation){
+  const epoch=state.refreshEpochs.get(id)||0,sequence=++state.refreshSequence;
+  const stale=()=>generation!==state.generation||epoch!==(state.refreshEpochs.get(id)||0)||sequence<(state.appliedRefreshes.get(id)||0);
+  const task=await api(`/tasks/${id}`);if(stale())return;
+  state.appliedRefreshes.set(id,sequence);updateTask(task);
+  if(task.mode==="collaborative"){
+    const graph=await api(`/tasks/${id}/graph`);if(stale())return;renderGraph(graph);
+  }
+  if(terminal.has(task.status)){
+    clearInterval(state.poll);
+    const response=await fetch(`/tasks/${id}/report`),report=response.ok?await response.json():null;
+    if(stale())return;
+    if(report)renderReport(report);
+    else $("report-panel").replaceChildren(node("p",task.status==="cancelled"?"任务已取消。":"报告尚不可用。","muted"));
+    await historyList();
+  }
+}
 async function loadTask(id){stopConnections();$("recovery-panel").hidden=true;$("graph-summary").hidden=true;$("subtask-list").replaceChildren();const generation=++state.generation;state.task=null;state.snapshot=null;taskControls(true);clearError();state.events.clear();state.cursor=0;state.report=null;state.evidenceRequest++;$("event-list").replaceChildren();$("source-list").replaceChildren();$("evidence-placeholder").hidden=false;$("evidence-detail").hidden=true;$("download-report").disabled=true;$("new-panel").hidden=true;$("workspace-panel").hidden=false;$("report-panel").replaceChildren(node("p","正在收集代码证据，可在调查过程中查看工具事件。","muted"));activateTab("report");history.replaceState({},"",`/?task_id=${encodeURIComponent(id)}`);try{const task=await api(`/tasks/${id}`);if(generation!==state.generation)return;const snapshot=await api(`/repositories/${task.snapshot_id}`);if(generation!==state.generation)return;state.snapshot=snapshot;$("snapshot-label").textContent=`SNAPSHOT / ${task.snapshot_id.slice(0,12)}`;$("repository-label").textContent=`${snapshot.source} · ${snapshot.commit_sha?`commit ${snapshot.commit_sha.slice(0,12)}`:`manifest ${snapshot.manifest_hash.slice(0,12)}`}`;updateTask(task);taskControls(false);connectEvents(id,generation);state.poll=setInterval(()=>refreshTask(id,generation).catch(e=>{if(generation===state.generation)showError(e.message);}),1500);await refreshTask(id,generation);}catch(e){if(generation===state.generation)showError(e.message);}}
 async function submitTask(snapshotId,question,intent,mode="single",retrieval_mode="keyword",rerank=false){return api("/tasks",{method:"POST",body:JSON.stringify({snapshot_id:snapshotId,question,mode,retrieval_mode,rerank,context_compression:intent.descriptor.context_compression||false,document_ids:intent.document_ids||intent.descriptor.document_ids||[],idempotency_key:intent.key})});}
 $("analysis-form").onsubmit=async event=>{
@@ -111,19 +141,14 @@ $("followup-form").onsubmit=async event=>{event.preventDefault();if(state.loadin
 $("cancel-task").onclick=async()=>{
   if(state.loading||!canCancelTask(state.task))return;
   const generation=state.generation,id=state.task.id;
-  state.actions.set(id,"cancel");updateTask(state.task);clearError();
+  invalidateTaskRefresh(id);state.actions.set(id,"cancel");updateTask(state.task);clearError();
   try{
     const task=await api(`/tasks/${id}/cancel`,{method:"POST"});
+    invalidateTaskRefresh(id);
     if(generation===state.generation&&state.task?.id===id)updateTask(task);
   }catch(e){if(generation===state.generation&&state.task?.id===id)showError(e.message);}
   finally{
-    state.actions.delete(id);
-    if(state.task?.id===id){
-      taskControls(state.loading);
-      const currentGeneration=state.generation;
-      if(!state.loading)try{await refreshTask(id,currentGeneration);}
-      catch(e){if(currentGeneration===state.generation&&state.task?.id===id)showError(e.message);}
-    }
+    await finishTaskAction(id);
   }
 };
 $("new-analysis").onclick=newAnalysis;
@@ -204,8 +229,8 @@ $("resume-task").onclick=async()=>{
   if(state.loading||!state.task?.resume_available||state.actions.has(state.task.id))return;
   const generation=state.generation,id=state.task.id,attempt=state.task.attempt||1;
   let intent=recoveryIntent();if(!intent||intent.task_id!==id||intent.from_attempt!==attempt){intent={task_id:id,from_attempt:attempt,key:crypto.randomUUID()};sessionStorage.setItem(recoveryIntentStorage,JSON.stringify(intent));}
-  state.actions.set(id,"resume");taskControls(state.loading);clearError();
-  try{const task=await api(`/tasks/${id}/resume`,{method:"POST",body:JSON.stringify({idempotency_key:intent.key})});if(recoveryIntent()?.key===intent.key)sessionStorage.removeItem(recoveryIntentStorage);if(generation===state.generation||state.task?.id===id)await loadTask(task.id);else await historyList();}
+  invalidateTaskRefresh(id);state.actions.set(id,"resume");taskControls(state.loading);clearError();
+  try{const task=await api(`/tasks/${id}/resume`,{method:"POST",body:JSON.stringify({idempotency_key:intent.key})});invalidateTaskRefresh(id);if(recoveryIntent()?.key===intent.key)sessionStorage.removeItem(recoveryIntentStorage);if(generation===state.generation||state.task?.id===id)await loadTask(task.id);else await historyList();}
   catch(e){if(generation===state.generation)showError(e.message);}
-  finally{state.actions.delete(id);if(state.task?.id===id)taskControls(state.loading);}
+  finally{await finishTaskAction(id);}
 };
