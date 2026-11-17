@@ -68,7 +68,7 @@ def context_shape(context):
     if type(server.get('synthetic')) is not bool:
         raise ValueError('unknown_run_environment')
     mapping(server.get('budget_limits'), 'invalid_run_budget')
-    if server.get('model_identifier') is not None and not isinstance(server['model_identifier'], str):
+    if 'model_identifier' not in server or (server['model_identifier'] is not None and not isinstance(server['model_identifier'], str)):
         raise ValueError('invalid_run_model')
 
 

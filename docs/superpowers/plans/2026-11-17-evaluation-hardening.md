@@ -22,13 +22,13 @@
 ### Task 1: Validation and diagnostics
 Files: src/repolens/direct.py, benchmark/validation.py (new), benchmark/review.py, benchmark/report.py.
 Interfaces: mapping(value,code)->dict; result_shape(record)->None; review_shape(review)->None. Boundary checks raise ValueError with stable codes.
-- [ ] Prioritize actual direct failures before baseline disclaimer.
-- [ ] Validate nested artifact shapes before field access; keep semantic checks in inspect_record/adjudicate.
-- [ ] Compile Python and inspect all aggregate consumers.
+- [x] Prioritize actual direct failures before baseline disclaimer.
+- [x] Validate nested artifact shapes before field access; keep semantic checks in inspect_record/adjudicate.
+- [x] Compile Python and inspect all aggregate consumers.
 
 ### Task 2: Delivery
 Files: docs/evaluation-hardening.md, docs/results/evaluation-hardening-compile.json, docs/evaluation-hardening-execution.md.
-- [ ] Document invalid-row versus shared-input behavior and existing-record compatibility.
-- [ ] Compile Python/templates, validate schemas/catalog, JS syntax, pip and Compose config; no tests.
-- [ ] Obtain one fresh-context static review, fix important findings once, repeat compilation if changed.
-- [ ] Commit locally without push, preserve user changes.
+- [x] Document invalid-row versus shared-input behavior and existing-record compatibility.
+- [x] Compile Python/templates, validate schemas/catalog, JS syntax, pip and Compose config; no tests.
+- [x] Obtain one fresh-context static review, fix important findings once, repeat compilation if changed.
+- [x] Commit locally without push, preserve user changes.

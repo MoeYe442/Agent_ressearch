@@ -18,7 +18,7 @@
 
 ## 先冻结计划，再显式执行
 
-原生或Compose启动见README与docs/infrastructure.md。API必须是同版0.9.0、真实模型已配置，运行器只连接环回地址，不读取模型密钥，不启动服务。共享工作目录、GitHub网络配额与模型预算由运行者在本地准备；实验期间不修改源码、更新环境、切模型或重建索引。
+原生或Compose启动见README与docs/infrastructure.md。API必须与当前源码同版、真实模型已配置，运行器只连接环回地址，不读取模型密钥，不启动服务。共享工作目录、GitHub网络配额与模型预算由运行者在本地准备；实验期间不修改源码、更新环境、切模型或重建索引。
 
 ```powershell
 # 只创建计划，不联网、不调用模型；新目录必须为空。
@@ -83,3 +83,5 @@
 旧`eval.run/compare/retrieval/recovery`保留作为历史开发工具；它们的格式与新V4封套不同，不自动转成正式结果。当前源码仅完成编译和静态审查，真实指标均待运行后生成。
 
 静态审查的重要问题已修复：不完整导出不再丢已知终态/用量，晚于deadline重启可单独读取原终态，题目首尾空白在冻结前按API行为规范化。暂缓两项轻微问题：校验和有效但嵌套类型错误的工件可能使整份报告退出；summary的estimated字段只汇总已知用量，需结合unknown槽位及null完整总量解读；0.9另提供明确命名的known_usage_contains_estimates，兼容保留estimated。执行记录见[v4-execution.md](v4-execution.md)。
+
+0.9.1 已处理前述嵌套类型容错待办：先校验结果、共享配置与人工评分结构，再按单题无效或共享输入错误处理；见[evaluation-hardening.md](evaluation-hardening.md)。此前记录为历史交付状态。
