@@ -19,19 +19,23 @@ def inspect_record(plan,spec,record,context):
     task=record.get('task')
     if record['execution_status']!='error' and not task:raise ValueError('observed_task_required')
     if not task and (record.get('report') or record.get('evidence')):raise ValueError('report_without_observed_task')
+    if task is not None and not isinstance(task,dict):raise ValueError('invalid_task_record')
+    direct=spec['configuration']=='direct'
     if task:
         if not usage_valid(task.get('usage')):raise ValueError('invalid_result_usage')
+        if direct and task.get('usage') and task['usage'].get('tool_calls')!=0:raise ValueError('direct_task_used_tools')
         if task.get('model_identifier')!=context['server']['model_identifier'] or task.get('budget_limits')!=context['server']['budget_limits']:raise ValueError('result_configuration_mismatch')
     evidence=record.get('evidence',[])
     if not isinstance(evidence,list):raise ValueError('invalid_evidence_records')
+    if direct and evidence:raise ValueError('direct_evidence_forbidden')
     by_id={item.get('id'):item for item in evidence if isinstance(item,dict)}
     if len(by_id)!=len(evidence):raise ValueError('duplicate_or_invalid_evidence')
     case=next(case for case in plan.suite.cases if case.id==spec['case_id'])
     repo=next(repo for repo in plan.suite.repositories if repo.id==case.repository)
     if task:
         snapshot=record.get('snapshot') or {}
-        mode,retrieval,rerank=CONFIGS[spec['configuration']]
-        if snapshot.get('commit')!=repo.commit or task.get('snapshot_id')!=snapshot.get('id') or task.get('question')!=case.question or task.get('mode')!=mode or task.get('retrieval_mode')!=retrieval or task.get('rerank') is not rerank or task.get('document_ids',[]):raise ValueError('result_task_scope_mismatch')
+        mode,retrieval,rerank,compression=CONFIGS[spec['configuration']]
+        if snapshot.get('commit')!=repo.commit or task.get('snapshot_id')!=snapshot.get('id') or task.get('question')!=case.question or task.get('mode')!=mode or task.get('retrieval_mode')!=retrieval or task.get('rerank') is not rerank or task.get('context_compression',False) is not compression or task.get('document_ids',[]):raise ValueError('result_task_scope_mismatch')
         if record['execution_status']!='timeout' and task.get('status')!=record['execution_status']:raise ValueError('result_terminal_status_mismatch')
     for item in evidence:
         start,end=item.get('start_line'),item.get('end_line')
@@ -49,7 +53,10 @@ def inspect_record(plan,spec,record,context):
         for index,claim in enumerate(report['claims']):
             if not isinstance(claim,dict) or not isinstance(claim.get('text'),str) or not isinstance(claim.get('evidence_ids'),list):raise ValueError('invalid_claim')
             refs=claim['evidence_ids']
-            if not refs or len(set(refs))!=len(refs):raise ValueError('claim_reference_invalid')
+            if any(not isinstance(ref,str) for ref in refs):raise ValueError('claim_reference_invalid')
+            if direct:
+                if refs or claim.get('verification_status')!='unverified':raise ValueError('direct_claim_must_be_unverified')
+            elif not refs or len(set(refs))!=len(refs):raise ValueError('claim_reference_invalid')
             if any(ref not in by_id for ref in refs):
                 if not record.get('artifact_error'):raise ValueError('claim_reference_invalid')
                 evidence_complete=False
@@ -58,13 +65,17 @@ def inspect_record(plan,spec,record,context):
             citations.extend({'citation_key':key+':'+ref,'claim_key':key,'evidence_id':ref} for ref in refs)
         if not set(by_id)<={ref for claim in claims for ref in claim['evidence_ids']}:raise ValueError('uncited_evidence_record')
     elif record['execution_status'] in {'succeeded','partial'} and not record.get('artifact_error'):raise ValueError('completed_report_missing')
+    if report:
+        stats=report.get('context_stats',{})
+        if not isinstance(stats,dict) or any(key not in {'requests','bytes_before','bytes_after','compressed_responses'} or type(value) is not int or value<0 for key,value in stats.items()):raise ValueError('invalid_context_stats')
+        if stats.get('bytes_after',0)>stats.get('bytes_before',0):raise ValueError('invalid_context_stats')
     matches={fact.id:[item['id'] for item in evidence if any(item.get('path')==anchor.path and item['start_line']<=anchor.end_line and item['end_line']>=anchor.start_line for anchor in fact.evidence)] for fact in case.facts}
-    return {'case':case,'evidence':by_id,'claims':claims,'citations':citations,'fact_candidates':matches,'evidence_complete':evidence_complete,'structure_pass':bool(claims) and all(matches.values()) and evidence_complete}
+    return {'case':case,'evidence':by_id,'claims':claims,'citations':citations,'fact_candidates':matches,'evidence_complete':evidence_complete,'structure_pass':not direct and bool(claims) and all(matches.values()) and evidence_complete,'direct':direct}
 
 
 def template(plan,spec,record,inspection):
     case=inspection['case'];repo=next(repo for repo in plan.suite.repositories if repo.id==case.repository)
-    return {'run_id':plan.run_id,'row_key':spec['key'],'result_hash':digest(record),'case_id':case.id,'question':case.question,'repository_url':repo.url,'commit':repo.commit,'evidence':list(inspection['evidence'].values()),'expected_evidence':{fact.id:[anchor.model_dump(mode='json') for anchor in fact.evidence] for fact in case.facts},'reviewer':'','independent_attested':False,'overall_note':'','facts':[{'fact_id':fact.id,'text':fact.text,'passed':None,'evidence_ids':[],'reason':''} for fact in case.facts],'claims':[{'claim_key':item['claim_key'],'text':item['text'],'supported':None,'reason':''} for item in inspection['claims']],'citations':[dict(item,supported=None,reason='') for item in inspection['citations']]}
+    return {'run_id':plan.run_id,'row_key':spec['key'],'result_hash':digest(record),'case_id':case.id,'question':case.question,'repository_url':repo.url,'commit':repo.commit,'evidence':list(inspection['evidence'].values()),'expected_evidence':{fact.id:[anchor.model_dump(mode='json') for anchor in fact.evidence] for fact in case.facts},'reviewer':'','independent_attested':False,'overall_note':'','facts':[{'fact_id':fact.id,'text':fact.text,'passed':False if inspection['direct'] else None,'content_correct':None,'evidence_ids':[],'reason':''} for fact in case.facts],'claims':[{'claim_key':item['claim_key'],'text':item['text'],'supported':None,'reason':''} for item in inspection['claims']],'citations':[dict(item,supported=None,reason='') for item in inspection['citations']]}
 
 
 def adjudicate(plan,spec,record,inspection,review):
@@ -81,21 +92,28 @@ def adjudicate(plan,spec,record,inspection,review):
         if not isinstance(rows,list) or len(rows)!=len(expected[group]) or {row.get(identifiers[group]) for row in rows if isinstance(row,dict)}!=expected[group]:raise ValueError('review_items_missing_or_duplicate')
         for row in rows:
             reference=next(item for item in canonical[group] if item[identifiers[group]]==row[identifiers[group]])
-            mutable={'passed','evidence_ids','reason'} if group=='facts' else {'supported','reason'}
+            mutable={'passed','content_correct','evidence_ids','reason'} if group=='facts' else {'supported','reason'}
             if set(row)!=set(reference) or any(row[key]!=value for key,value in reference.items() if key not in mutable):raise ValueError('review_immutable_text_changed')
             verdict=row.get('passed' if group=='facts' else 'supported')
             if verdict is not None and type(verdict) is not bool:raise ValueError('boolean_review_verdict_required')
             if verdict is not None:
-                if not isinstance(row.get('reason'),str) or not row['reason'].strip():raise ValueError('review_reason_required')
+                if not (inspection['direct'] and group=='facts' and verdict is False) and (not isinstance(row.get('reason'),str) or not row['reason'].strip()):raise ValueError('review_reason_required')
                 coverage[group]+=1
+            if group=='facts':
+                content=row.get('content_correct')
+                if content is not None and type(content) is not bool:raise ValueError('boolean_content_verdict_required')
+                if content is not None and (not isinstance(row.get('reason'),str) or not row['reason'].strip()):raise ValueError('review_reason_required')
+                if inspection['direct'] and (verdict is not False or row.get('evidence_ids')):raise ValueError('direct_fact_has_no_source_support')
             if group=='facts' and verdict is True:
                 refs=row.get('evidence_ids',[])
                 if not isinstance(refs,list) or not refs or any(ref not in inspection['fact_candidates'][row['fact_id']] for ref in refs):raise ValueError('fact_support_requires_annotated_observed_evidence')
             if group=='citations' and verdict is True:citation_passes+=1
             judgments.append(verdict)
-    if review.get('reviewer')=='' and review.get('independent_attested') is False and all(value is None for value in judgments):
+    if review.get('reviewer')=='' and review.get('independent_attested') is False and all(item.get('content_correct') is None for item in review['facts']) and all(item.get('supported') is None for item in review['claims']+review['citations']) and all(item.get('passed') is (False if inspection['direct'] else None) for item in review['facts']):
         return {'quality_pass':None,'complete':False,'reviewer':None,'coverage':coverage,'citation_passes':0,'citation_reviewed':0}
     if not isinstance(review.get('reviewer'),str) or not review['reviewer'].strip() or review.get('independent_attested') is not True:raise ValueError('independent_reviewer_attestation_required')
-    complete=all(value is not None for value in judgments)
-    quality=(all(judgments) and bool(inspection['claims']) and not record.get('artifact_error')) if complete else None
-    return {'quality_pass':quality,'complete':complete,'reviewer':review['reviewer'],'coverage':coverage,'citation_passes':citation_passes,'citation_reviewed':coverage['citations']}
+    content_judgments=[item['content_correct'] for item in review['facts']]+[item['supported'] for item in review['claims']]
+    complete=all(value is not None for value in judgments+content_judgments)
+    answer=(all(content_judgments) and bool(inspection['claims']) and not record.get('artifact_error')) if complete else None
+    quality=(not inspection['direct'] and all(judgments+content_judgments) and bool(inspection['claims']) and not record.get('artifact_error')) if complete else None
+    return {'answer_pass':answer,'content_facts_passed':sum(item['content_correct'] is True for item in review['facts']),'facts_passed':sum(item['passed'] is True for item in review['facts']),'facts_total':len(review['facts']),'quality_pass':quality,'complete':complete,'reviewer':review['reviewer'],'coverage':coverage,'citation_passes':citation_passes,'citation_reviewed':coverage['citations']}

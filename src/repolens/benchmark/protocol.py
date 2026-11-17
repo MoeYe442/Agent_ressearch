@@ -8,8 +8,18 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 from pydantic import BaseModel,ConfigDict,Field,model_validator,field_validator
 
-CONFIGS={'single_keyword':('single','keyword',False),'collaborative_keyword':('collaborative','keyword',False),'collaborative_hybrid':('collaborative','hybrid',False),'collaborative_hybrid_rerank':('collaborative','hybrid',True)}
-CONFIGURATION=Literal['single_keyword','collaborative_keyword','collaborative_hybrid','collaborative_hybrid_rerank']
+CONFIGS = {
+    'direct': ('direct', 'keyword', False, False),
+    'single_keyword': ('single', 'keyword', False, False),
+    'single_keyword_compressed': ('single', 'keyword', False, True),
+    'collaborative_keyword': ('collaborative', 'keyword', False, False),
+    'collaborative_keyword_compressed': ('collaborative', 'keyword', False, True),
+    'collaborative_hybrid': ('collaborative', 'hybrid', False, False),
+    'collaborative_hybrid_compressed': ('collaborative', 'hybrid', False, True),
+    'collaborative_hybrid_rerank': ('collaborative', 'hybrid', True, False),
+    'collaborative_hybrid_rerank_compressed': ('collaborative', 'hybrid', True, True),
+}
+CONFIGURATION=Literal['direct','single_keyword','single_keyword_compressed','collaborative_keyword','collaborative_keyword_compressed','collaborative_hybrid','collaborative_hybrid_compressed','collaborative_hybrid_rerank','collaborative_hybrid_rerank_compressed']
 
 
 def digest(value):return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode()).hexdigest()

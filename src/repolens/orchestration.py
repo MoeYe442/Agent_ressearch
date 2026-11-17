@@ -12,6 +12,7 @@ from repolens.budget import BudgetManager, BudgetExceeded
 from repolens.document_scope import allows_path
 from repolens.model_client import ProviderError
 from repolens.model_gateway import ModelGateway
+from repolens.context_compression import combine_stats
 from repolens.models import AnalysisResult, ResearchPlan, ReviewDecision, TaskEvent
 from repolens.review import result_hash, collect_claims, validate_review, render_report
 from repolens.checkpoints import saver_for
@@ -101,6 +102,7 @@ class CollaborativeRunner:
 
         def make_result(work, result=None, reason=None):
             value = {"id": work["id"], "role": work["role"], "question": work["question"], "status": result.status if result else "partial", "claims": [item.model_dump() for item in result.claims] if result else [], "evidence_ids": result.evidence_ids if result else [], "limitations": result.limitations if result else [reason]}
+            value["context_stats"] = result.context_stats if result else {}
             value["result_hash"] = result_hash(value)
             return value
 
@@ -262,4 +264,4 @@ class CollaborativeRunner:
             limitations.append("cancelled")
         limitations = list(dict.fromkeys(limitations))
         publish(state, status)
-        return AnalysisResult(status=status, claims=valid, limitations=limitations, markdown=render_report(valid, limitations), usage=usage, mode="collaborative", evidence_ids=sorted(observed), role_usage=budget.roles())
+        return AnalysisResult(status=status, claims=valid, limitations=limitations, markdown=render_report(valid, limitations), usage=usage, mode="collaborative", evidence_ids=sorted(observed), role_usage=budget.roles(), context_stats=combine_stats(state["results"]))

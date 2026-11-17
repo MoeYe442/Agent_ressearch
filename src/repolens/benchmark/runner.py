@@ -133,7 +133,7 @@ class Runner:
     def cell(self,spec):
         case=next(case for case in self.plan.suite.cases if case.id==spec['case_id'])
         repo=next(repo for repo in self.plan.suite.repositories if repo.id==case.repository)
-        mode,retrieval,rerank=CONFIGS[spec['configuration']]
+        mode,retrieval,rerank,compression=CONFIGS[spec['configuration']]
         key='bench:'+self.plan.run_id+':'+spec['key'];attempt_name='attempts/'+spec['key']+'.json'
         attempt=optional_artifact(self.files,attempt_name)
         if attempt and (type(attempt.get('started')) not in {int,float} or not math.isfinite(attempt['started']) or attempt['started']<=0 or attempt['started']>time.time()+60 or attempt.get('phase') not in {'prepared','submitting','observing','cancel_pending'}):raise RunInterrupted('invalid_attempt_artifact_restore_before_resume')
@@ -152,12 +152,12 @@ class Runner:
                 if time.time()>=deadline:raise RunInterrupted('expired_submission_outcome_unknown_no_new_task_created')
                 self.check_configuration()
                 attempt['phase']='submitting';self.files.write(attempt_name,attempt)
-                task=self.api.request('POST','/tasks',{'snapshot_id':snapshot['id'],'question':case.question,'mode':mode,'retrieval_mode':retrieval,'rerank':rerank,'idempotency_key':key})
+                task=self.api.request('POST','/tasks',{'snapshot_id':snapshot['id'],'question':case.question,'mode':mode,'retrieval_mode':retrieval,'rerank':rerank,'context_compression':compression,'idempotency_key':key})
             attempt['task_id']=task['id']
             if attempt.get('phase')!='cancel_pending':attempt['phase']='observing'
             self.files.write(attempt_name,attempt)
             record['snapshot']={'id':snapshot['id'],'commit':repo.commit,'manifest_hash':snapshot['manifest_hash']}
-            if task.get('model_identifier')!=self.context['server']['model_identifier'] or task.get('budget_limits')!=self.context['server']['budget_limits'] or (index and task.get('retrieval_configuration',{}).get('index_id')!=index['id']):
+            if task.get('mode')!=mode or task.get('retrieval_mode')!=retrieval or task.get('rerank') is not rerank or task.get('context_compression',False) is not compression or task.get('document_ids',[]) or task.get('model_identifier')!=self.context['server']['model_identifier'] or task.get('budget_limits')!=self.context['server']['budget_limits'] or (index and task.get('retrieval_configuration',{}).get('index_id')!=index['id']):
                 self.api.request('POST','/tasks/'+task['id']+'/cancel')
                 raise RunInterrupted('task_configuration_mismatch_cancel_requested')
             while task.get('status') not in TERMINAL:

@@ -58,6 +58,8 @@ class ToolContext(BaseModel):
     source_scope: Literal["all", "code", "docs"] = "all"
     retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
     rerank: bool = False
+    analysis_mode: Literal["single", "collaborative", "direct"] = "single"
+    context_compression: bool = False
     retrieval_index_id: str | None = None
     document_ids: list[str] = Field(default_factory=list,max_length=10)
 
@@ -122,8 +124,9 @@ class AnalysisResult(BaseModel):
     markdown: str = ""
     usage: Usage
     evidence_ids: list[str] = Field(default_factory=list)
-    mode: Literal["single", "collaborative"] = "single"
+    mode: Literal["single", "collaborative", "direct"] = "single"
     role_usage: dict[str, dict] = Field(default_factory=dict)
+    context_stats: dict[str, int] = Field(default_factory=dict)
 
 
 class AnalysisTask(BaseModel):
@@ -137,13 +140,14 @@ class AnalysisTask(BaseModel):
     usage: Usage | None = None
     created_at: str
     updated_at: str
-    mode: Literal["single", "collaborative"] = "single"
+    mode: Literal["single", "collaborative", "direct"] = "single"
     budget_limits: dict[str, int | float] = Field(default_factory=dict)
     model_identifier: str | None = None
     prompt_version: str | None = None
     retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
     rerank: bool = False
     retrieval_configuration: dict = Field(default_factory=dict)
+    context_compression: bool = False
     recovery_enabled: bool = False
     recovery_config_hash: str | None = None
     attempt: int = 1

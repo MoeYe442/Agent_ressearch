@@ -1,4 +1,4 @@
-# V4 可复现评测（0.8.0）
+# V4 可复现评测（0.9.0）
 
 本轮交付评测协议、运行器、人工评分和报告导出，**没有运行测试、评测、模型、服务或容器**。题目和可接受结论属于源码静态核对后的标注草案，仍需独立人工复核。没有真实质量/速度/费用提升数据，不能把编译或旧版synthetic记录当作当前效果。
 
@@ -18,7 +18,7 @@
 
 ## 先冻结计划，再显式执行
 
-原生或Compose启动见README与docs/infrastructure.md。API必须是同版0.8.0、真实模型已配置，运行器只连接环回地址，不读取模型密钥，不启动服务。共享工作目录、GitHub网络配额与模型预算由运行者在本地准备；实验期间不修改源码、更新环境、切模型或重建索引。
+原生或Compose启动见README与docs/infrastructure.md。API必须是同版0.9.0、真实模型已配置，运行器只连接环回地址，不读取模型密钥，不启动服务。共享工作目录、GitHub网络配额与模型预算由运行者在本地准备；实验期间不修改源码、更新环境、切模型或重建索引。
 
 ```powershell
 # 只创建计划，不联网、不调用模型；新目录必须为空。
@@ -37,7 +37,7 @@
 .\.venv\Scripts\python -m repolens.evaluate run --directory .data/evaluations/final --execute
 ```
 
-可选配置为`collaborative_hybrid`、`collaborative_hybrid_rerank`，需事先配置真实检索服务。当前没有无检索直接回答、压缩开关基线，CLI不会接受这些未实现配置；不能在展示中声称已完成完整消融。
+新增 `direct`、`single_keyword_compressed` 和全部协作配置的 `_compressed` 变体；混合/重排需真实服务。默认仍为两项关键词配置，完整配置表、人工内容/来源双裁决与比较口径见[evaluation-baselines.md](evaluation-baselines.md)。实现基线不代表已完成实际消融实验。
 
 ## 运行记录与中断
 
@@ -59,7 +59,7 @@
 .\.venv\Scripts\python -m repolens.evaluate review-template --directory .data/evaluations/final --output .data/evaluations/final/review-1.json
 ```
 
-评分包包含问题、仓库/commit、关键事实、实际公开结论、引用与正文。仅修改`reviewer`、`independent_attested`、`overall_note`及事实/结论/引用的裁决、支持ID和原因，不修改原始问题/正文/键。每项裁决为true/false/null；null表示未审。给定裁决须填写reason；事实通过须引用实际返回且落在预定证据范围内的ID。
+评分包包含问题、仓库/commit、关键事实、实际公开结论、引用与正文。仅修改`reviewer`、`independent_attested`、`overall_note`及事实/结论/引用的裁决、支持ID和原因，不修改原始问题/正文/键。每项裁决为true/false/null；null表示未审。给定裁决须填写reason；事实的 `content_correct` 判断内容是否正确覆盖，`passed` 判断是否有实际返回且落在预定范围内的证据支持；直接模式的 `passed` 固定 false，但仍人工判断内容。旧评分模板需重新生成，原始结果与计划保留。
 
 每条公开结论与每个“结论—引用”关系分别判断支持程度，防止只满足少数gold事实却忽略额外错误。结果hash、run、槽位、问题、正文均绑定；旧记录、重复评分槽位、错题或改写源文本会拒绝。评分不是LLM自评；独立性为人工声明，系统不能认证真实身份。
 
@@ -82,4 +82,4 @@
 
 旧`eval.run/compare/retrieval/recovery`保留作为历史开发工具；它们的格式与新V4封套不同，不自动转成正式结果。当前源码仅完成编译和静态审查，真实指标均待运行后生成。
 
-静态审查的重要问题已修复：不完整导出不再丢已知终态/用量，晚于deadline重启可单独读取原终态，题目首尾空白在冻结前按API行为规范化。暂缓两项轻微问题：校验和有效但嵌套类型错误的工件可能使整份报告退出；summary的estimated字段只汇总已知用量，需结合unknown槽位及null完整总量解读。执行记录见[v4-execution.md](v4-execution.md)。
+静态审查的重要问题已修复：不完整导出不再丢已知终态/用量，晚于deadline重启可单独读取原终态，题目首尾空白在冻结前按API行为规范化。暂缓两项轻微问题：校验和有效但嵌套类型错误的工件可能使整份报告退出；summary的estimated字段只汇总已知用量，需结合unknown槽位及null完整总量解读；0.9另提供明确命名的known_usage_contains_estimates，兼容保留estimated。执行记录见[v4-execution.md](v4-execution.md)。

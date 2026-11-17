@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 from uuid import uuid4
 from repolens.agent import AgentRunner
+from repolens.direct import DirectRunner
 from repolens.indexing import build_index
 from repolens.models import AnalysisTask, AnalysisResult, RepositorySnapshot, TaskEvent, ToolContext, Usage
 from repolens.repositories import checked_repo, create_snapshot
@@ -191,19 +192,21 @@ class TaskService:
             self.queue.put(("import", snapshot_id))
         return snapshot
 
-    def submit(self, snapshot_id, question, idempotency_key=None, *, mode="single", retrieval_mode="keyword", rerank=False,document_ids=None):
+    def submit(self, snapshot_id, question, idempotency_key=None, *, mode="single", retrieval_mode="keyword", rerank=False,document_ids=None,context_compression=False):
         document_ids=sorted(set(document_ids or []))
         if len(document_ids)>10:raise ValueError('document_attachment_limit')
-        if mode not in {"single", "collaborative"}:
+        if mode not in {"single", "collaborative", "direct"}:
             raise ValueError("invalid_mode")
         if retrieval_mode not in {"keyword", "hybrid"} or (rerank and retrieval_mode != "hybrid"):
             raise ValueError("invalid_retrieval_mode")
+        if mode == "direct" and (retrieval_mode != "keyword" or rerank or document_ids or context_compression):
+            raise ValueError("direct_mode_requires_no_retrieval_documents_or_compression")
         with self.lock,self.db.atomic():
             if self.stopping.is_set():raise ValueError('service_stopping')
             if idempotency_key:
                 try:
                     prior = self.db.get("idempotency", idempotency_key)
-                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question or prior.get("mode", "single") != mode or prior.get("retrieval_mode", "keyword") != retrieval_mode or prior.get("rerank", False) != rerank or prior.get('document_ids',[])!=document_ids:
+                    if prior["snapshot_id"] != snapshot_id or prior["question"] != question or prior.get("mode", "single") != mode or prior.get("retrieval_mode", "keyword") != retrieval_mode or prior.get("rerank", False) != rerank or prior.get('document_ids',[])!=document_ids or prior.get('context_compression',False)!=context_compression:
                         raise ValueError("idempotency_conflict")
                     return self.get(prior["task_id"])
                 except KeyError:
@@ -219,8 +222,9 @@ class TaskService:
                 if rerank and not self.retrieval.rerank_configured:
                     raise ValueError("rerank_not_configured")
                 configuration = {**index["configuration"], "index_id": index["id"], "rerank_model": self.settings.rerank_model if rerank else None}
-            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.7-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration,recovery_enabled=True)
+            task = AnalysisTask(id=uuid4().hex, snapshot_id=snapshot_id, question=question, mode=mode, created_at=now(), updated_at=now(), budget_limits=limits, model_identifier=identifier, prompt_version="repolens-0.9-" + mode, retrieval_mode=retrieval_mode, rerank=rerank, retrieval_configuration=configuration,recovery_enabled=True)
             task.document_ids=document_ids
+            task.context_compression=context_compression
             task.recovery_config_hash=digest(signature(task,self.settings,self.db))
             # Single process submission lock; key, task and first event share one transaction.
             with self.db.connect() as conn:
@@ -231,7 +235,7 @@ class TaskService:
                 conn.execute("INSERT INTO events VALUES (?,?,?)", (task.id, 1, event.model_dump_json()))
                 if idempotency_key:
                     import json
-                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id, "mode": mode, "retrieval_mode": retrieval_mode, "rerank": rerank,'document_ids':document_ids})))
+                    conn.execute("INSERT INTO entities VALUES ('idempotency',?,?)", (idempotency_key, json.dumps({"snapshot_id": snapshot_id, "question": question, "task_id": task.id, "mode": mode, "retrieval_mode": retrieval_mode, "rerank": rerank,'document_ids':document_ids,'context_compression':context_compression})))
             self.queue.put(("task", task.id))
             return task
 
@@ -363,9 +367,11 @@ class TaskService:
                     payload = {**payload, "graph": graph}
                 self._save(current, event.type, payload, graph=graph,execution_epoch=epoch)
 
-        runner = CollaborativeRunner(self.model, self.registry, self.settings) if task.mode == "collaborative" else DurableSingleRunner(self.model,self.registry,self.settings) if task.recovery_enabled else AgentRunner(self.model, self.registry, self.settings)
+        runner = CollaborativeRunner(self.model, self.registry, self.settings) if task.mode == "collaborative" else DurableSingleRunner(self.model,self.registry,self.settings) if task.recovery_enabled else DirectRunner(self.model,self.registry,self.settings) if task.mode == "direct" else AgentRunner(self.model, self.registry, self.settings)
         context = ToolContext(snapshot_id=task.snapshot_id, task_id=task_id, retrieval_mode=task.retrieval_mode, rerank=task.rerank, retrieval_index_id=task.retrieval_configuration.get("index_id"))
         context.document_ids=task.document_ids
+        context.analysis_mode=task.mode
+        context.context_compression=task.context_compression
         result = None
         if task.retrieval_mode == "hybrid":
             try:

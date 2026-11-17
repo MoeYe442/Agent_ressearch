@@ -1,8 +1,8 @@
-# RepoLens V4.0 · 可复现评测与展示
+# RepoLens V4.1 · 可复现评测与展示
 
 Agent_ressearch：基于固定快照和可复查引用的开源项目研读平台。
 
-本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.8.0；新增固定commit的30题标注草案、显式评测CLI、人工评分绑定与报告导出，另附演示/简历素材。仍按要求只编译，没有运行测试、评测或服务，真实指标尚未取得。见[评测说明](docs/evaluation.md)、[网页与MCP](docs/web-documents-mcp.md)及[工程化](docs/infrastructure.md)。
+本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.9.0；新增直接回答/历史压缩基线与对比统计，详见[基线说明](docs/evaluation-baselines.md)。新增固定commit的30题标注草案、显式评测CLI、人工评分绑定与报告导出，另附演示/简历素材。仍按要求只编译，没有运行测试、评测或服务，真实指标尚未取得。见[评测说明](docs/evaluation.md)、[网页与MCP](docs/web-documents-mcp.md)及[工程化](docs/infrastructure.md)。
 
 ## Windows PowerShell 启动
 
@@ -113,4 +113,4 @@ API 示例：`POST /repositories` JSON 为 `{"github_url":"https://github.com/pa
 
 `python -m repolens.evaluate plan`冻结配置和重复次数，不联网；`run --execute`才会提交现有API并可能产生模型费用。`review-template`生成人工事实/结论/引用裁决包，`report`只从本地原始工件重算JSON/CSV/Markdown/HTML。默认development两配置三次为120个调查；先用`--case-id`创建单题开发计划。
 
-完整流程见[评测协议](docs/evaluation.md)，演示分镜见[demo.md](docs/demo.md)，技术取舍见[showcase.md](docs/showcase.md)，诚实的简历素材见[resume.md](docs/resume.md)。本轮未执行上述评测、没有录制视频，不填写质量或费用提升；无检索直接回答与压缩消融基线仍未实现。
+完整流程见[评测协议](docs/evaluation.md)，演示分镜见[demo.md](docs/demo.md)，技术取舍见[showcase.md](docs/showcase.md)，诚实的简历素材见[resume.md](docs/resume.md)。本轮未执行上述评测、没有录制视频，不填写质量或费用提升；已补齐无检索直接回答、规则式历史压缩及同题对比统计，使用方式与边界见[评测基线](docs/evaluation-baselines.md)；实际消融结果仍待运行。

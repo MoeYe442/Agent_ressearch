@@ -2,6 +2,7 @@ from typing import TypedDict
 from langgraph.graph import StateGraph,START,END
 from langsmith import tracing_context
 from repolens.agent import AgentRunner
+from repolens.direct import DirectRunner
 from repolens.models import AnalysisResult
 from repolens.budget import BudgetManager
 from repolens.model_gateway import ModelGateway
@@ -22,7 +23,8 @@ class DurableSingleRunner:
         budget=BudgetManager(self.settings,session=session)
         gateway=ModelGateway(self.model,budget,emit,cancelled,context.task_id)
         def investigate(state):
-            result=AgentRunner(self.model,self.registry,self.settings).run(question,context,emit,cancelled,budget=budget,gateway=gateway)
+            runner_type = DirectRunner if context.analysis_mode == "direct" else AgentRunner
+            result=runner_type(self.model,self.registry,self.settings).run(question,context,emit,cancelled,budget=budget,gateway=gateway)
             return {'result':result.model_dump(mode='json')}
         builder=StateGraph(SingleState);builder.add_node('investigate',investigate);builder.add_edge(START,'investigate');builder.add_edge('investigate',END)
         config={'configurable':{'thread_id':context.task_id},'max_concurrency':2,'recursion_limit':self.settings.graph_recursion_limit}

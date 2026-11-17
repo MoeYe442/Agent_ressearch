@@ -47,13 +47,16 @@ class TaskRequest(BaseModel):
     snapshot_id: str = Field(min_length=1, max_length=100)
     question: str = Field(min_length=1, max_length=10000, pattern=r"\S")
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
-    mode: Literal["single", "collaborative"] = "single"
+    mode: Literal["single", "collaborative", "direct"] = "single"
     retrieval_mode: Literal["keyword", "hybrid"] = "keyword"
     rerank: bool = False
+    context_compression: bool = False
     document_ids: list[str] = Field(default_factory=list,max_length=10)
 
     @model_validator(mode="after")
     def valid_retrieval(self):
+        if self.mode == "direct" and (self.retrieval_mode != "keyword" or self.rerank or self.document_ids or self.context_compression):
+            raise ValueError("direct_mode_requires_no_retrieval_documents_or_compression")
         if self.rerank and self.retrieval_mode != "hybrid":
             raise ValueError("rerank_requires_hybrid")
         return self
@@ -219,7 +222,7 @@ def create_app(settings, model=None, *, github_client_factory=None, retrieval_fa
     def submit(body: TaskRequest):
         # Index is committed before a snapshot becomes eligible for analysis.
         db.get("indexes", body.snapshot_id)
-        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key, mode=body.mode, retrieval_mode=body.retrieval_mode, rerank=body.rerank,document_ids=body.document_ids)
+        return service.submit(body.snapshot_id, body.question.strip(), body.idempotency_key, mode=body.mode, retrieval_mode=body.retrieval_mode, rerank=body.rerank,document_ids=body.document_ids,context_compression=body.context_compression)
 
     def document_metadata(row):return {key:value for key,value in row.items() if key!='paragraphs'}
 
