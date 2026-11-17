@@ -2,7 +2,7 @@
 
 Agent_ressearch：基于固定快照和可复查引用的开源项目研读平台。
 
-本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.10.1；新增直接回答/历史压缩基线与对比统计，详见[基线说明](docs/evaluation-baselines.md)。新增固定commit的30题标注草案、显式评测CLI、人工评分绑定与报告导出，另附演示/简历素材。仍按要求只编译，没有运行测试、评测或服务，真实指标尚未取得。见[评测说明](docs/evaluation.md)、[网页与MCP](docs/web-documents-mcp.md)及[工程化](docs/infrastructure.md)。
+本地与公开 GitHub Python 仓库研读工作台：固定快照 → AST / 全文检索 → 单 Agent / LangGraph 协作调查 → 结构化报告 → 可点击证据。Python 3.12+，FastAPI + SQLite/PostgreSQL + Jinja2 / 原生 JavaScript。当前包版本0.10.1；新增直接回答/历史压缩基线与对比统计，详见[基线说明](docs/evaluation-baselines.md)。新增固定commit的30题标注草案、显式评测CLI、人工评分绑定与报告导出，另附演示/简历素材。未运行自动测试或真实模型评测，真实质量指标尚未取得；0.10.1 已在本机独立验收环境启动基础服务，见[部署记录](docs/deepseek-deployment.md)。见[评测说明](docs/evaluation.md)、[网页与MCP](docs/web-documents-mcp.md)及[工程化](docs/infrastructure.md)。
 
 ## Windows PowerShell 启动
 

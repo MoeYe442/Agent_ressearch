@@ -1,0 +1,64 @@
+{
+  "version": "0.10.1",
+  "url": "http://127.0.0.1:8001",
+  "health_status": 200,
+  "ready_status": 200,
+  "home_status": 200,
+  "storage_backend": "postgres",
+  "execution_mode": "api",
+  "worker_ready": true,
+  "model_configured": false,
+  "dispatch": "database+redis-wake",
+  "redis_degraded": false,
+  "synthetic": false,
+  "task_count": 0,
+  "model_requests_submitted": 0,
+  "model_spend_cny": 0,
+  "approved_model_budget_cny": 10,
+  "automated_tests_run": false,
+  "runtime_scope": "baseline service startup and read-only health/config inspection only",
+  "tools_preflight": {
+    "exit_code": 0,
+    "configuration_ready": true,
+    "runtime_verified": false,
+    "blockers": [],
+    "deepseek_mode": [
+      "ok"
+    ]
+  },
+  "model_preflight": {
+    "exit_code": 1,
+    "configuration_ready": false,
+    "runtime_verified": false,
+    "blockers": [
+      "model_not_ready"
+    ],
+    "deepseek_mode": [
+      "ok"
+    ]
+  },
+  "services": [
+    {
+      "Service": "api",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "postgres",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "redis",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "worker",
+      "State": "running",
+      "Health": "healthy"
+    }
+  ],
+  "observed_date": "2026-11-17",
+  "note": "Actual isolated baseline service deployment and read-only operational inspection. No task, paid model request, automated test, fault injection or benchmark was run. Not a provider/model acceptance result."
+}

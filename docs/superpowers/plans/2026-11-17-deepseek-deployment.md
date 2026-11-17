@@ -22,13 +22,13 @@
 
 ### Task 1: DeepSeek configuration
 Files: config.py, model_client.py, preflight.py, compose.yaml, .env.example; docs/deepseek-deployment.md.
-- [ ] Add provider_default/disabled model_thinking flag, environment loading and optional request field.
-- [ ] Guard official DeepSeek configuration with preflight compatibility diagnostic, preserve other-provider defaults and existing fingerprint coverage.
-- [ ] Compile and document current official endpoint/model/date and local-key setup.
+- [x] Add provider_default/disabled model_thinking flag, environment loading and optional request field.
+- [x] Guard official DeepSeek configuration with preflight compatibility diagnostic, preserve other-provider defaults and existing fingerprint coverage.
+- [x] Compile and document current official endpoint/model/date and local-key setup.
 
 ### Task 2: Local deployment and delivery
 Files: ignored .env/operational receipts, compile receipt, execution ledger.
-- [ ] Start installed Docker Desktop hidden, create isolated local config with generated PostgreSQL secret and empty model key.
-- [ ] Build/start baseline services, inspect statuses and read-only health/preflight only; no tests or task submissions.
-- [ ] One fresh static review; fix Important issues once; compile.
-- [ ] Commit and push current branch per updated AGENT.md, verify remote SHA; report precise runtime/credential limitations.
+- [x] Start installed Docker Desktop hidden, create isolated local config with generated PostgreSQL secret and empty model key.
+- [x] Build/start baseline services, inspect statuses and read-only health/preflight only; no tests or task submissions.
+- [x] One fresh static review; fix Important issues once; compile.
+- [x] Commit and push current branch per updated AGENT.md, verify remote SHA; report precise runtime/credential limitations.

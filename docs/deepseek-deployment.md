@@ -48,3 +48,11 @@ docker compose exec -T api python -m repolens.preflight --require postgres --req
 先确认 `/health` 版本、postgres/api 角色、worker_ready 和 `/ready` 状态。它们只代表基础服务与租约状态，不验证模型凭据或工具调用。后续真实模型联调需单独记录供应商实际用量和费用；服务健康、编译通过不能写成“模型联调通过”。本轮不跑自动测试，也不导入/分析用户仓库来冒充模型验收。
 
 源码提交包含非敏感配置、适配和操作文档；本机 `.env`、构建日志与环境收据保留在 git 忽略范围。实际部署结果以本次执行记录和本机收据为准。
+
+## 本轮实际运行结果
+
+已构建应用镜像并启动独立项目的 PostgreSQL、Redis、API、worker，四者均为 running/healthy。页面、/health、/ready 返回200；版本0.10.1，postgres后端、api角色、worker_ready=true、Redis通知未降级。容器中 tools-only + postgres/redis 配置检查返回0；要求模型时返回1，唯一阻塞为 model_not_ready（本机密钥空）。
+
+本轮分析任务数0、提交模型请求数0、模型费用0元；10元为后续本轮联调批准上限，并未实现货币硬限额。没有启动 Milvus/浏览器，也没有自动测试、故障注入、迁移或评测。脱敏运行收据见 [deepseek-deployment-runtime.json](results/deepseek-deployment-runtime.json)。这仅证明基础服务就绪，不证明 DeepSeek 真实工具调用或恢复场景通过。
+
+本机页面地址 http://127.0.0.1:8001 。后续需要操作者在本机 .env 的 REPOLENS_API_KEY 填入密钥后更新 api/worker 环境；密钥不通过聊天或 Git 传递。
