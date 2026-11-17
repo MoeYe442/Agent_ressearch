@@ -43,7 +43,7 @@ API `POST /tasks` 增加 `mode: "direct"`。为兼容现有检索字段，其 `r
 
 ## 人工裁决与比较
 
-每个事实现在分为 `content_correct`（答案是否正确覆盖该事实）和 `passed`（是否有本任务返回的有效位置证据支持），均由独立人工填写。直接回答的 `passed` 固定 false、evidence_ids 为空，`content_correct` 仍需人工判断。结论 `supported` 在直接模式表示对照固定源码后的事实正确性；检索模式还需逐项判断引用支持程度。请重新生成评分模板，旧模板缺少 content_correct 将被拒绝；不修改原始结果和计划。
+每个事实现在分为 `content_correct`（答案是否正确覆盖该事实）和 `passed`（是否有本任务返回的有效位置证据支持），均由独立人工填写。直接回答的 `passed` 固定 false、evidence_ids 为空，`content_correct` 仍需人工判断。每条结论另设 `content_correct`，所有模式均表示对照固定源码后的事实正确性；`supported` 只判断本任务证据支持，直接模式固定 false。检索模式还需逐项判断引用支持程度。请重新生成评分模板，旧模板缺少事实/结论 content_correct 将被拒绝；不修改原始结果和计划。
 
 `answer_correctness_rate` 要求全部事实内容和额外公开结论正确；`answer_fact_coverage_rate` 只统计正确覆盖的事实。`fact_coverage_rate` 统计有来源证据支持的事实，`quality_completion_rate` 同时要求内容、结论、引用通过；直接回答的后两项不能通过。失败且明确无回答的槽位计不通过；未审、导出不全、未执行或坏工件不能悄悄删除，正式率保留 null。
 
