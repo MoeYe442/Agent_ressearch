@@ -112,10 +112,11 @@ def inspect_configuration(settings, required):
             active=bool(redis_url) and redis_used)
 
     hybrid_values = (settings.milvus_url, settings.embedding_url, settings.embedding_model)
-    feature('hybrid', all(hybrid_values), any(hybrid_values), '混合检索配置项齐备；服务、维度、凭据和索引尚未验证。',
+    hybrid_ready = all(present(value) for value in hybrid_values)
+    feature('hybrid', hybrid_ready, any(hybrid_values), '混合检索配置项齐备；服务、维度、凭据和索引尚未验证。',
             '配置 REPOLENS_MILVUS_URL、REPOLENS_EMBEDDING_URL、REPOLENS_EMBEDDING_MODEL。')
     rerank_values = (settings.rerank_url, settings.rerank_model)
-    feature('rerank', all(rerank_values) and all(hybrid_values), any(rerank_values),
+    feature('rerank', all(present(value) for value in rerank_values) and hybrid_ready, any(rerank_values),
             '重排及混合检索配置项齐备；实际重排尚未验证。', '重排需要完整混合检索配置及 REPOLENS_RERANK_URL、REPOLENS_RERANK_MODEL。')
     feature('documents', bool(settings.document_hosts), bool(settings.document_hosts),
             '网页允许站点已配置；网络策略和正文采集尚未验证。', '按需配置 REPOLENS_DOCUMENT_HOSTS；默认不开放网页采集。')
@@ -145,7 +146,7 @@ def main():
     try:
         from repolens.config import Settings
         value = inspect_configuration(Settings.from_env(), required)
-    except (ValueError, OSError, ImportError):
+    except (ValueError, OSError, ImportError, RuntimeError):
         value = report(required, [dict(code='invalid_environment_configuration', status='error',
                                       message='环境配置、路径或配置依赖无法解析；请按 .env.example 核对，原始值和异常已隐藏。')])
     if args.json:

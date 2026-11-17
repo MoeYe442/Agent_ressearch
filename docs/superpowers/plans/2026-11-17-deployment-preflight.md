@@ -22,13 +22,13 @@
 ### Task 1: Offline diagnostics
 Files: new src/repolens/preflight.py.
 Interfaces: inspect_configuration(settings,required)->dict with fixed safe checks; main()->exit code 0/1/2, JSON or readable text.
-- [ ] Implement dependency/path/model/storage/retrieval/document/renderer checks, optional requirements and implication rules.
-- [ ] Implement CLI with exception redaction, default model requirement and tools-only mode.
-- [ ] Compile and inspect call graph for no network/storage constructors.
+- [x] Implement dependency/path/model/storage/retrieval/document/renderer checks, optional requirements and implication rules.
+- [x] Implement CLI with exception redaction, default model requirement and tools-only mode.
+- [x] Compile and inspect call graph for no network/storage constructors.
 
 ### Task 2: Deployment preparation delivery
 Files: docs/deployment-preflight.md, README.md, version files, compile/operational receipts and execution ledger.
-- [ ] Document native/Compose config distinction and concrete staged runtime acceptance, without running it.
-- [ ] Run offline inventory in the actual process environment; store only redacted operational result outside git.
-- [ ] Compile Python/Jinja/schema/catalog, check JS/dependencies/Compose configuration, no tests/services.
-- [ ] One fresh static review, fix Important findings once, compile, commit locally.
+- [x] Document native/Compose config distinction and concrete staged runtime acceptance, without running it.
+- [x] Run offline inventory in the actual process environment; store only redacted operational result outside git.
+- [x] Compile Python/Jinja/schema/catalog, check JS/dependencies/Compose configuration, no tests/services.
+- [x] One fresh static review, fix Important findings once, compile, commit locally.
